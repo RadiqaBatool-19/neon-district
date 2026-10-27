@@ -1,6 +1,31 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { distanceToLines, type TwinModel } from '../../data/digital-twin/buildTwinModel';
 import { useTwinStore, type MeasurePoint } from '../../stores/twinStore';
+
+/**
+ * Surface point under the pointer while a measure tool is active. Mutable on
+ * purpose: written on every pointer move and read in the render loop by the
+ * rubber-band preview, so moving the mouse never triggers a React re-render.
+ */
+export const measureCursor = {
+  active: false,
+  point: new THREE.Vector3(),
+  building: null as number | null,
+};
+
+export function updateMeasureCursor(point: THREE.Vector3, buildingIndex: number | null) {
+  if (useTwinStore.getState().tool === 'none') {
+    measureCursor.active = false;
+    return;
+  }
+  measureCursor.active = true;
+  measureCursor.point.copy(point);
+  measureCursor.building = buildingIndex;
+}
+
+export function clearMeasureCursor() {
+  measureCursor.active = false;
+}
 
 /** Convert a picked world point (region metres) to a measurement point with lon/lat and elevation. */
 export function toMeasurePoint(model: TwinModel, p: THREE.Vector3, exaggeration: number, buildingIndex: number | null): MeasurePoint {

@@ -749,6 +749,15 @@
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
 }
 
+.tw-measure-label--live {
+  background: rgba(37, 99, 235, 0.92);
+  font-weight: 500;
+}
+
+.tw-measure-label--live:empty {
+  display: none;
+}
+
 .tw-measure-label--strong {
   background: var(--tw-accent);
   font-size: 12.5px;

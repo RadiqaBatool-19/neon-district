@@ -7,7 +7,7 @@ import { SIM_SCALES } from '../../data/digital-twin/simulatedMetrics';
 import { HEIGHT_RAMP, metricValue, SOURCE_COLORS, TYPE_COLORS, TYPE_FALLBACK } from '../../data/digital-twin/styling';
 import { useTwinStore, type ColorBy } from '../../stores/twinStore';
 import { sampleRamp } from '../../utils/colorRamp';
-import { handleSceneClick } from './picking';
+import { clearMeasureCursor, handleSceneClick, updateMeasureCursor } from './picking';
 import { useTwinModel } from './TwinModelContext';
 
 function buildingGeometry(b: TwinBuilding, exaggeration: number): THREE.BufferGeometry {
@@ -156,9 +156,13 @@ export function BuildingsLayer({ visibleSet }: { visibleSet: Set<number> }) {
         onPointerMove={(e) => {
           e.stopPropagation();
           const id = idOf(e);
+          updateMeasureCursor(e.point, id);
           if (id !== null && useTwinStore.getState().hovered !== id) useTwinStore.getState().setHovered(id);
         }}
-        onPointerOut={() => useTwinStore.getState().hovered !== null && useTwinStore.getState().setHovered(null)}
+        onPointerOut={() => {
+          clearMeasureCursor();
+          if (useTwinStore.getState().hovered !== null) useTwinStore.getState().setHovered(null);
+        }}
         onClick={(e) => {
           if (e.delta > 5) return;
           e.stopPropagation();

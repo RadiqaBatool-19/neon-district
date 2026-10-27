@@ -3,7 +3,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useTwinStore } from '../../stores/twinStore';
 import { createGroundCanvas, drawGround, groundUv } from './groundTexture';
-import { handleSceneClick } from './picking';
+import { clearMeasureCursor, handleSceneClick, updateMeasureCursor } from './picking';
 import { useTwinModel } from './TwinModelContext';
 
 const SEG = 96;
@@ -95,7 +95,16 @@ export function TerrainLayer({ ghostFootprints }: { ghostFootprints: import('../
   const { minX, maxX, minZ, maxZ } = model.extent;
   return (
     <group>
-      <mesh geometry={geometry} receiveShadow onClick={onClick}>
+      <mesh
+        geometry={geometry}
+        receiveShadow
+        onClick={onClick}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          updateMeasureCursor(e.point, null);
+        }}
+        onPointerOut={clearMeasureCursor}
+      >
         <meshStandardMaterial map={texture} roughness={0.95} metalness={0} />
       </mesh>
       <mesh geometry={plinth}>
