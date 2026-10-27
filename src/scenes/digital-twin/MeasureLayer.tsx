@@ -8,6 +8,9 @@ import { useTwinStore, type MeasurePoint } from '../../stores/twinStore';
 import { measureCursor, toMeasurePoint } from './picking';
 import { useTwinModel } from './TwinModelContext';
 
+// drei 9 ignores `pointerEvents` outside transform mode, so labels must opt out of hit-testing via style.
+const NO_POINTER = { pointerEvents: 'none' } as const;
+
 const LIFT = 0.6;
 
 /**
@@ -83,7 +86,7 @@ function MeasurePreview({ tool, points }: { tool: 'distance' | 'area'; points: M
         <meshBasicMaterial color="#60a5fa" depthTest={false} transparent opacity={0.9} />
       </mesh>
       <group ref={labelAnchor}>
-        <Html center zIndexRange={[3, 0]} pointerEvents="none">
+        <Html style={NO_POINTER} center zIndexRange={[3, 0]}>
           <div ref={label} className="tw-measure-label tw-measure-label--live" />
         </Html>
       </group>
@@ -123,13 +126,13 @@ export function MeasureLayer() {
           const a = points[i];
           const b = points[i + 1];
           return (
-            <Html key={i} position={[(a.x + b.x) / 2, Math.max(a.y, b.y) + 6, (a.z + b.z) / 2]} center zIndexRange={[3, 0]} className="tw-measure-label">
+            <Html style={NO_POINTER} key={i} position={[(a.x + b.x) / 2, Math.max(a.y, b.y) + 6, (a.z + b.z) / 2]} center zIndexRange={[3, 0]} className="tw-measure-label">
               {formatLength(d)}
             </Html>
           );
         })}
       {area && (
-        <Html
+        <Html style={NO_POINTER}
           position={[points.reduce((s, p) => s + p.x, 0) / points.length, Math.max(...points.map((p) => p.y)) + 8, points.reduce((s, p) => s + p.z, 0) / points.length]}
           center
           zIndexRange={[3, 0]}

@@ -3,6 +3,9 @@ import { Html } from '@react-three/drei';
 import { useTwinStore } from '../../stores/twinStore';
 import { useTwinModel } from './TwinModelContext';
 
+// drei 9 ignores `pointerEvents` outside transform mode, so labels must opt out of hit-testing via style.
+const NO_POINTER = { pointerEvents: 'none' } as const;
+
 /** Map labels for named buildings and major named roads. */
 export function Labels({ visibleSet }: { visibleSet: Set<number> }) {
   const model = useTwinModel();
@@ -34,12 +37,12 @@ export function Labels({ visibleSet }: { visibleSet: Set<number> }) {
   return (
     <group>
       {buildingLabels.map((l) => (
-        <Html key={l.key} position={l.pos} center zIndexRange={[3, 0]} className="tw-label tw-label--building" pointerEvents="none">
+        <Html style={NO_POINTER} key={l.key} position={l.pos} center zIndexRange={[3, 0]} className="tw-label tw-label--building">
           {l.text}
         </Html>
       ))}
       {roadLabels.map((l) => (
-        <Html key={l.key} position={l.pos} center zIndexRange={[3, 0]} className="tw-label tw-label--road" pointerEvents="none">
+        <Html style={NO_POINTER} key={l.key} position={l.pos} center zIndexRange={[3, 0]} className="tw-label tw-label--road">
           {l.text}
         </Html>
       ))}
