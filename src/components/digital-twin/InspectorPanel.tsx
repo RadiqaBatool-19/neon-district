@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { Building, Crosshair, Database, ExternalLink, Route, X } from 'lucide-react';
+import { buildingFacts, NOT_AVAILABLE, type Fact } from '../../data/digital-twin/buildingFacts';
 import type { TwinModel } from '../../data/digital-twin/buildTwinModel';
 import { typeLabel } from '../../data/digital-twin/styling';
 import { useTwinStore } from '../../stores/twinStore';
@@ -27,12 +29,33 @@ function TagTable({ props }: { props: Record<string, unknown> }) {
   );
 }
 
+/** Missing values are shown as "Not available", never as a dash or an estimate. */
+function FactValue({ value }: { value: string | null }) {
+  return value === null ? <span className="tw-na">{NOT_AVAILABLE}</span> : <>{value}</>;
+}
+
+function FactList({ facts, showMethod }: { facts: Fact[]; showMethod?: boolean }) {
+  return (
+    <dl className="tw-kvs tw-facts">
+      {facts.map((f) => (
+        <div key={f.key} className="tw-kv">
+          <dt>{f.label}</dt>
+          <dd dir="auto">
+            <FactValue value={f.value} />
+            {showMethod && f.method && <small className="tw-method">{f.method}</small>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function BuildingInspector({ model, index }: { model: TwinModel; index: number }) {
   const b = model.buildings[index];
   const select = useTwinStore((s) => s.select);
   const requestCamera = useTwinStore((s) => s.requestCamera);
   const p = b.props;
-  const base = model.terrain ? model.terrain.baseElevation + b.baseY : null;
+  const facts = useMemo(() => buildingFacts(model, index), [model, index]);
 
   return (
     <>
@@ -60,14 +83,15 @@ function BuildingInspector({ model, index }: { model: TwinModel; index: number }
       </div>
       <p className="tw-note">{b.source === 'recorded' ? 'Height taken from the OSM height tag.' : `Not a measurement: ${p.height_note}.`}</p>
 
-      <h3 className="tw-h3">Geometry</h3>
-      <dl className="tw-kvs">
-        <KV k="Footprint area">{Math.round(b.footprintArea).toLocaleString()} m²</KV>
-        <KV k="Levels (OSM)">{p['building:levels'] ?? '—'}</KV>
-        <KV k="Min. height (OSM)">{p.min_height ?? '—'}</KV>
-        <KV k="Ground elevation">{base !== null ? `${base.toFixed(1)} m ASL` : 'No DEM'}</KV>
-        <KV k="To nearest major road">{Number.isFinite(b.distToMajorRoad) ? `${b.distToMajorRoad.toFixed(0)} m` : '—'}</KV>
-      </dl>
+      <h3 className="tw-h3">
+        Source attributes <span className="tw-prov">OpenStreetMap</span>
+      </h3>
+      <FactList facts={facts.source} />
+
+      <h3 className="tw-h3">
+        Derived values <span className="tw-prov tw-prov--derived">Computed</span>
+      </h3>
+      <FactList facts={facts.derived} showMethod />
       {b.overlaps.length > 0 && (
         <div className="tw-callout">
           <strong>Overlapping OSM feature.</strong> {b.overlaps.map((o) => model.buildings[o].props.osm_id).join(', ')} shares this exact footprint.{' '}
@@ -76,7 +100,7 @@ function BuildingInspector({ model, index }: { model: TwinModel; index: number }
       )}
 
       <h3 className="tw-h3">
-        Environmental metrics <SimBadge />
+        Synthetic metrics <SimBadge />
       </h3>
       <dl className="tw-kvs tw-kvs--sim">
         <KV k="Energy use intensity">{b.sim.energyIntensity.toFixed(0)} kWh/m²/yr</KV>
@@ -86,10 +110,12 @@ function BuildingInspector({ model, index }: { model: TwinModel; index: number }
       </dl>
       <p className="tw-note">Synthetic values for demonstration, shaped by real geometry. Not sensor readings.</p>
 
-      <h3 className="tw-h3">OSM tags</h3>
-      <TagTable props={p} />
+      <details className="tw-details">
+        <summary>All OSM tags</summary>
+        <TagTable props={p} />
+      </details>
       <p className="tw-note tw-mono">
-        v{p.osm_version ?? '?'} · edited {p.osm_timestamp ? new Date(String(p.osm_timestamp)).toLocaleDateString() : 'unknown'}
+        OSM v{p.osm_version ?? '?'} · last edited {p.osm_timestamp ? new Date(String(p.osm_timestamp)).toISOString().slice(0, 10) : 'unknown'} · extracted {model.data.meta.extracted_at.slice(0, 10)}
       </p>
 
       <div className="tw-actions">
@@ -121,10 +147,16 @@ function RoadInspector({ model, index }: { model: TwinModel; index: number }) {
         </button>
       </header>
       <dl className="tw-kvs">
-        <KV k="Length within extract">{Number(r.props.length_m).toFixed(1)} m</KV>
-        <KV k="Lanes">{r.props.lanes ?? '—'}</KV>
-        <KV k="One-way">{r.props.oneway ?? '—'}</KV>
-        <KV k="Surface">{r.props.surface ?? '—'}</KV>
+        <KV k="Length within extract">{Number(r.props.length_m).toFixed(1)} m (QGIS, UTM 43N)</KV>
+        <KV k="Lanes">
+          <FactValue value={r.props.lanes} />
+        </KV>
+        <KV k="One-way">
+          <FactValue value={r.props.oneway} />
+        </KV>
+        <KV k="Surface">
+          <FactValue value={r.props.surface} />
+        </KV>
         <KV k="Drawn width">{r.widthM.toFixed(1)} m (symbolised)</KV>
       </dl>
       <h3 className="tw-h3">OSM tags</h3>

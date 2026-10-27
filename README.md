@@ -90,7 +90,18 @@ Estimated buildings are hatched in the scene. The inspector shows the source nex
 - Layers for buildings, roads/paths, land use, terrain relief (with 1–3× vertical exaggeration) and labels.
 - Building colour modes: type, height, height source, plus **simulated** energy use, roof temperature and PM2.5. There is also a **simulated** ground overlay for temperature or PM2.5. Each mode has a legend, and simulated values are badged everywhere they appear.
 - Filters by building type, height range and height source. Filtered-out buildings leave dashed footprints on the ground.
-- Inspector with geometry, raw OSM tags, a link to the feature on openstreetmap.org, DEM ground elevation, and a separate simulated-metrics block. Roads can be inspected too.
+- Inspector in three clearly separated sections:
+  - **Source attributes** exactly as tagged in OSM (building, name, address, use, operator, height, levels, min_height). Missing tags show "Not available" and are never estimated.
+  - **Derived values**, each with its method: height used and its source, footprint area (QGIS, UTM 43N), ellipsoidal perimeter, volume (flagged when it uses an estimated height), DEM ground elevation, centroid, and distance to the nearest major road.
+  - **Synthetic metrics**, badged as simulated.
+
+  It also has the full OSM tag table, a link to the feature on openstreetmap.org, and OSM version / edit / extract dates. The facts come from one pure module (`data/digital-twin/buildingFacts.ts`), so later comparison and export features can reuse them. Roads can be inspected too.
+- **Data validation:** `npm run validate:twin` (Node ≥ 22.18) checks each available area:
+  - geometry validity (closed rings, coordinates in the bbox, unique ids) and height-source consistency;
+  - the app's measurement code against the QGIS attributes (`footprint_area_m2`, `length_m`);
+  - the scene projection against ellipsoidal distance.
+
+  It exits non-zero on failure. Blue Area West: worst area difference 0.025 %, worst road length difference 5 cm, projection error 0.009 %.
 - **Measurement:** distance (Vincenty, WGS84 ellipsoid, plus elevation change and along-surface length), area (ellipsoidal local plane) and point probe (lon/lat + DEM elevation).
   Verified against QGIS `QgsDistanceArea` (EPSG:7030) during development:
   - Distance: 362.903 m in the app vs 362.90 m in QGIS.
