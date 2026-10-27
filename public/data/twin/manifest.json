@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "region": {
+    "name": "Islamabad–Rawalpindi",
+    "origin": { "lon": 73.0652, "lat": 33.6938, "label": "Regional origin (approx. Zero Point, Islamabad)" },
+    "processing_crs": "EPSG:32643"
+  },
+  "areas": [
+    {
+      "id": "islamabad-blue-area-west",
+      "name": "Blue Area West",
+      "subtitle": "Centaurus & Jinnah Avenue",
+      "city": "Islamabad",
+      "bbox": [73.0482604, 33.7069051, 73.0547396, 33.7122949],
+      "layers": {
+        "buildings": "islamabad-blue-area-west/buildings.geojson",
+        "roads": "islamabad-blue-area-west/roads.geojson",
+        "landuse": "islamabad-blue-area-west/landuse.geojson",
+        "terrain": "islamabad-blue-area-west/terrain.json"
+      },
+      "meta": "islamabad-blue-area-west/meta.json",
+      "status": "available"
+    }
+  ]
+}

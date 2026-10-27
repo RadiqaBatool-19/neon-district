@@ -1,0 +1,13 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# Vercel (project link + OIDC token)
+.vercel
+.env*
+
+# Local tooling / machine-specific
+.mcp.json
+.claude
+prompt.txt

@@ -1,0 +1,8 @@
+# Local-only files: never upload to Vercel.
+node_modules
+dist
+gis
+prompt.txt
+.mcp.json
+.claude
+*.local

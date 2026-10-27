@@ -1,0 +1,67 @@
+{
+  "id": "islamabad-blue-area-west",
+  "name": "Blue Area West - Centaurus & Jinnah Avenue",
+  "city": "Islamabad",
+  "country": "Pakistan",
+  "center": [
+    73.0515,
+    33.7096
+  ],
+  "bbox": [
+    73.0482604,
+    33.7069051,
+    73.0547396,
+    33.7122949
+  ],
+  "size_m": [
+    600.0,
+    600.0
+  ],
+  "source": "OpenStreetMap via Overpass API (overpass-api.de), processed in QGIS 4.2.3-Belém do Pará",
+  "osm_base_timestamp": "2026-10-27T06:13:36Z",
+  "extracted_at": "2026-10-27T06:15:27+00:00",
+  "processing_crs": "EPSG:32643 (WGS 84 / UTM zone 43N) for areas and lengths",
+  "export_crs": "EPSG:4326 (RFC 7946 GeoJSON)",
+  "clip_rule": {
+    "buildings": "whole footprint kept if centroid inside bbox",
+    "roads": "clipped to bbox",
+    "landuse": "clipped to bbox"
+  },
+  "height_rules": {
+    "recorded": "OSM height tag (metres)",
+    "estimated_from_levels": "building:levels x 3.0 m",
+    "estimated_default": "per building-type default, used when OSM has neither height nor building:levels",
+    "defaults_m": {
+      "yes": 6.0,
+      "commercial": 12.0,
+      "retail": 9.0,
+      "office": 15.0,
+      "apartments": 15.0,
+      "residential": 7.0,
+      "house": 7.0,
+      "mosque": 10.0,
+      "roof": 4.0,
+      "school": 9.0,
+      "hospital": 12.0,
+      "hotel": 15.0,
+      "garage": 3.0,
+      "shed": 3.0,
+      "construction": 6.0,
+      "public": 9.0,
+      "government": 12.0
+    }
+  },
+  "counts": {
+    "buildings": 90,
+    "roads": 112,
+    "landuse": 11,
+    "height_source": {
+      "recorded": 4,
+      "estimated_from_levels": 1,
+      "estimated_default": 85
+    }
+  },
+  "license": "ODbL 1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "license_url": "https://www.openstreetmap.org/copyright"
+}
