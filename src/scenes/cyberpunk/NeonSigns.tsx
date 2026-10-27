@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { signUvRect } from './signAtlas';
-import { useCyberResources } from './resources';
+import { districtIndexAt, useCyberResources } from './resources';
 
 /**
  * Neon signage (one instanced draw call) plus soft coloured glow decals on the
@@ -21,9 +21,11 @@ export function NeonSigns({ visible, streetGlow }: { visible: boolean; streetGlo
     const uv = new Float32Array(signs.length * 4);
     const color = new Float32Array(signs.length * 3);
     const anim = new Float32Array(signs.length * 3);
+    const district = new Float32Array(signs.length);
     const c = new THREE.Color();
     signs.forEach((s, i) => {
       uv.set(signUvRect(s), i * 4);
+      district[i] = districtIndexAt(s.x, s.z);
       c.set(s.color);
       color.set([c.r, c.g, c.b], i * 3);
       anim.set([s.anim, (s.seed % 1000) * 0.137, s.style === 'blade' ? 0 : 1], i * 3);
@@ -31,18 +33,22 @@ export function NeonSigns({ visible, streetGlow }: { visible: boolean; streetGlo
     g.setAttribute('aUv', new THREE.InstancedBufferAttribute(uv, 4));
     g.setAttribute('aColor', new THREE.InstancedBufferAttribute(color, 3));
     g.setAttribute('aAnim', new THREE.InstancedBufferAttribute(anim, 3));
+    g.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(district, 1));
     return g;
   }, [signs]);
 
   const glowGeometry = useMemo(() => {
     const g = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const col = new Float32Array(lowSigns.length * 4);
+    const district = new Float32Array(lowSigns.length);
     const c = new THREE.Color();
     lowSigns.forEach((s, i) => {
       c.set(s.color);
       col.set([c.r, c.g, c.b, s.style === 'billboard' ? 0.35 : 0.55], i * 4);
+      district[i] = districtIndexAt(s.x, s.z);
     });
     g.setAttribute('aColor', new THREE.InstancedBufferAttribute(col, 4));
+    g.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(district, 1));
     return g;
   }, [lowSigns]);
 

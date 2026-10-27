@@ -1,15 +1,24 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { getCityPlan, type CityPlan, type PartShape } from './cityGenerator';
+import { DISTRICT_INDEX, OUTSIDE_INDEX } from '../../data/cyberpunk/citySimulation';
+import { districtAt, getCityPlan, type CityPlan, type PartShape } from './cityGenerator';
 import {
   createBeaconMaterial,
   createCyberUniforms,
   createFacadeMaterial,
   createGlowDecalMaterial,
   createGroundMaterial,
+  createLampMaterial,
   createSignMaterial,
+  createZoneMaterial,
   type CyberUniforms,
 } from './materials';
+
+/** Shader district index (see DISTRICT_INDEX) for a world position. */
+export function districtIndexAt(x: number, z: number): number {
+  const d = districtAt(x, z);
+  return d ? DISTRICT_INDEX[d] : OUTSIDE_INDEX;
+}
 import { createSignAtlas } from './signAtlas';
 
 /** Twisted, tapering tower geometry for the Aurora Spire (unit size, base at y = 0). */
@@ -58,7 +67,12 @@ export interface CyberResources {
   ground: THREE.MeshStandardMaterial;
   sign: THREE.ShaderMaterial;
   beacon: THREE.MeshBasicMaterial;
+  /** Glow decals under signs. */
   glow: THREE.ShaderMaterial;
+  /** Light pools under street lights. */
+  streetGlow: THREE.ShaderMaterial;
+  lamp: THREE.ShaderMaterial;
+  zone: THREE.ShaderMaterial;
 }
 
 const Ctx = createContext<CyberResources | null>(null);
@@ -75,7 +89,10 @@ export function CyberResourcesProvider({ children }: { children: ReactNode }) {
       ground: createGroundMaterial(uniforms),
       sign: createSignMaterial(uniforms, atlas),
       beacon: createBeaconMaterial(uniforms),
-      glow: createGlowDecalMaterial(),
+      glow: createGlowDecalMaterial(uniforms, uniforms.uSignGlow),
+      streetGlow: createGlowDecalMaterial(uniforms, uniforms.uStreetLevel),
+      lamp: createLampMaterial(uniforms),
+      zone: createZoneMaterial(uniforms),
     };
   }, []);
 
@@ -88,6 +105,9 @@ export function CyberResourcesProvider({ children }: { children: ReactNode }) {
       res.sign.dispose();
       res.beacon.dispose();
       res.glow.dispose();
+      res.streetGlow.dispose();
+      res.lamp.dispose();
+      res.zone.dispose();
     },
     [res],
   );

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { DISTRICT_INDEX } from '../../data/cyberpunk/citySimulation';
 import { CITY } from '../../data/cyberpunk/config';
 import { HORIZONTAL_WORDS } from './cityGenerator';
 import { useCyberResources } from './resources';
@@ -38,11 +39,14 @@ export function Plaza() {
   const haloB = useRef<THREE.Mesh>(null);
   const pillarRef = useRef<THREE.InstancedMesh>(null);
 
+  // Plaza power (blackout events), shared by the plaza's own shaders.
+  const power = useMemo(() => ({ value: 1 }), []);
+
   const mats = useMemo(() => {
     const floor = fogAware(
       VERT,
       /* glsl */ `
-      uniform float uTime;
+      uniform float uTime; uniform float uPower;
       #include <common>
       #include <fog_pars_fragment>
       varying vec2 vUv; varying vec3 vPos;
@@ -56,27 +60,27 @@ export function Plaza() {
         float edge = 1.0 - smoothstep(0.0, 0.5, abs(r - ${PLAZA_R.toFixed(1)} + 0.6));
         vec3 base = vec3(0.012, 0.014, 0.022) + vec3(0.01) * step(0.5, fract(r / 3.2));
         vec3 cyan = vec3(0.25, 0.9, 1.0);
-        vec3 col = base + cyan * (rings * 0.10 + spokes * 0.08 + pulse * 0.6 * (1.0 - r / 34.0) + edge * 1.6);
+        vec3 col = base + cyan * (rings * 0.10 + spokes * 0.08 + pulse * 0.6 * (1.0 - r / 34.0) + edge * 1.6) * uPower;
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
         #include <fog_fragment>
       }`,
-      { uTime: uniforms.uTime },
+      { uTime: uniforms.uTime, uPower: power },
     );
 
     const beam = fogAware(
       VERT,
       /* glsl */ `
-      uniform float uTime;
+      uniform float uTime; uniform float uPower;
       #include <common>
       #include <fog_pars_fragment>
       varying vec2 vUv; varying vec3 vPos;
       void main() {
         float fade = pow(1.0 - vUv.y, 1.6);
         float flow = 0.75 + 0.25 * sin(vUv.y * 40.0 - uTime * 3.0);
-        gl_FragColor = vec4(vec3(0.35, 0.85, 1.0) * fade * flow * 0.55, 1.0);
+        gl_FragColor = vec4(vec3(0.35, 0.85, 1.0) * fade * flow * 0.55 * uPower, 1.0);
       }`,
-      { uTime: uniforms.uTime },
+      { uTime: uniforms.uTime, uPower: power },
       { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false },
     );
 
@@ -84,7 +88,7 @@ export function Plaza() {
     const holo = fogAware(
       VERT,
       /* glsl */ `
-      uniform float uTime; uniform sampler2D uAtlas; uniform vec4 uRect;
+      uniform float uTime; uniform sampler2D uAtlas; uniform vec4 uRect; uniform float uPower;
       #include <common>
       #include <fog_pars_fragment>
       varying vec2 vUv; varying vec3 vPos;
@@ -96,9 +100,10 @@ export function Plaza() {
         float frame = 1.0 - smoothstep(0.0, 0.02, min(e.x, e.y));
         float glitch = step(0.97, fract(sin(floor(uTime * 6.0) * 91.7) * 4375.5));
         vec3 col = vec3(0.3, 0.85, 1.0) * (text * 1.8 * scan + frame * 0.9 + 0.06) * (1.0 - glitch * 0.7);
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(col * uPower, 1.0);
       }`,
       {
+        uPower: power,
         uTime: uniforms.uTime,
         uAtlas: { value: atlas },
         uRect: { value: new THREE.Vector4(0.25 - 0.16, 1 - ((wordRow + 1) * 128) / 2048, 0.25 + 0.16, 1 - (wordRow * 128) / 2048) },
@@ -109,7 +114,8 @@ export function Plaza() {
     const halo = new THREE.MeshBasicMaterial({ color: new THREE.Color('#5fe9ff').multiplyScalar(3), toneMapped: false });
     const pillar = new THREE.MeshBasicMaterial({ color: new THREE.Color('#7af3ff').multiplyScalar(2.4), toneMapped: false });
     return { floor, beam, holo, halo, pillar };
-  }, [uniforms, atlas]);
+  }, [uniforms, atlas, power]);
+  const baseColors = useMemo(() => ({ halo: mats.halo.color.clone(), pillar: mats.pillar.color.clone() }), [mats]);
 
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
 
@@ -126,6 +132,12 @@ export function Plaza() {
   }, []);
 
   useFrame((_, dt) => {
+    const p = uniforms.uDistrict.value[DISTRICT_INDEX.plaza].y;
+    if (p !== power.value) {
+      power.value = p;
+      mats.halo.color.copy(baseColors.halo).multiplyScalar(0.03 + 0.97 * p);
+      mats.pillar.color.copy(baseColors.pillar).multiplyScalar(0.03 + 0.97 * p);
+    }
     if (holoGroup.current) holoGroup.current.rotation.y += dt * 0.12;
     if (haloA.current) haloA.current.rotation.z += dt * 0.25;
     if (haloB.current) haloB.current.rotation.z -= dt * 0.18;

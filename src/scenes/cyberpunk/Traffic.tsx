@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CITY, CITY_HALF_EXTENT, HALF_GRID, PITCH } from '../../data/cyberpunk/config';
+import { DENSITY_FACTOR, useCyberStore } from '../../stores/cyberpunkStore';
 import { createRng } from '../../utils/random';
 import { getHighways, samplePath } from './highwayPaths';
 
@@ -40,9 +41,22 @@ interface GroundCar {
   line: number;
   s: number;
   speed: number;
+  /** Phase and rate of the slow speed variation (accelerating / braking). */
+  phase: number;
+  rate: number;
 }
 
-/** Street traffic on the grid plus traffic on the elevated highways. */
+/** Speed multiplier that drifts smoothly between ~0.55 and 1.15 — reads as traffic easing and braking. */
+function cruise(t: number, phase: number, rate: number) {
+  return 0.85 + 0.2 * Math.sin(t * rate + phase) + 0.1 * Math.sin(t * rate * 2.7 + phase * 1.7);
+}
+
+/**
+ * Street traffic on the grid plus traffic on the elevated highways. Buffers are
+ * sized for heavy traffic; the density control only changes the drawn count,
+ * so switching density never rebuilds anything. Streets near the centre get
+ * more cars, so the commercial core reads busier than the outskirts.
+ */
 export function Traffic({ cars, highwayCars, visible }: { cars: number; highwayCars: number; visible: boolean }) {
   const groundRef = useRef<THREE.InstancedMesh>(null);
   const hwRef = useRef<THREE.InstancedMesh>(null);
@@ -60,15 +74,26 @@ export function Traffic({ cars, highwayCars, visible }: { cars: number; highwayC
 
   const ground = useMemo<GroundCar[]>(() => {
     const rng = createRng(99);
+    // Weighted street lines: central streets carry up to ~3× the traffic of the edge streets.
     const lines: number[] = [];
-    for (let k = -HALF_GRID - 1; k <= HALF_GRID; k++) lines.push((k + 0.5) * PITCH);
+    for (let k = -HALF_GRID - 1; k <= HALF_GRID; k++) {
+      const centrality = 1 - Math.abs(k + 0.5) / (HALF_GRID + 1);
+      for (let r = 0; r < 1 + Math.round(centrality * 2.5); r++) lines.push((k + 0.5) * PITCH);
+    }
     return Array.from({ length: cars }, () => {
       const dir = rng.chance(0.5) ? 1 : -1;
       const lane = rng.chance(0.5) ? 2.4 : 5.6;
       const axis: 0 | 1 = rng.chance(0.5) ? 0 : 1;
       // Right-hand traffic: eastbound keeps to +z, southbound keeps to −x.
       const side = axis === 0 ? dir : -dir;
-      return { axis, line: rng.pick(lines) + lane * side, s: rng.range(-CITY_HALF_EXTENT, CITY_HALF_EXTENT), speed: rng.range(9, 17) * dir };
+      return {
+        axis,
+        line: rng.pick(lines) + lane * side,
+        s: rng.range(-CITY_HALF_EXTENT, CITY_HALF_EXTENT),
+        speed: rng.range(9, 17) * dir,
+        phase: rng.range(0, Math.PI * 2),
+        rate: rng.range(0.15, 0.45),
+      };
     });
   }, [cars]);
 
@@ -78,9 +103,10 @@ export function Traffic({ cars, highwayCars, visible }: { cars: number; highwayC
       const h = rng.int(0, highways.length - 1);
       const dir = rng.chance(0.5) ? 1 : -1;
       const lane = rng.chance(0.5) ? 1.8 : 5.0;
-      return { h, u: rng.next(), offset: lane * dir, speed: (rng.range(22, 34) * dir) / highways[h].lut.length };
+      return { h, u: rng.next(), offset: lane * dir, speed: (rng.range(22, 34) * dir) / highways[h].lut.length, phase: rng.range(0, Math.PI * 2), rate: rng.range(0.1, 0.3) };
     });
   }, [highwayCars, highways]);
+  const time = useRef(0);
 
   // Static per-instance colours.
   useEffect(() => {
@@ -98,13 +124,17 @@ export function Traffic({ cars, highwayCars, visible }: { cars: number; highwayC
   useFrame((_, rawDt) => {
     if (!visible) return;
     const dt = Math.min(rawDt, 0.1);
+    time.current += dt;
+    const T = time.current;
+    const density = DENSITY_FACTOR[useCyberStore.getState().trafficDensity];
     const { m, q, p, s, t, up } = tmp;
     const g = groundRef.current;
     if (g) {
       const lim = CITY_HALF_EXTENT;
-      for (let i = 0; i < ground.length; i++) {
+      g.count = Math.round(ground.length * density);
+      for (let i = 0; i < g.count; i++) {
         const c = ground[i];
-        c.s += c.speed * dt;
+        c.s += c.speed * cruise(T, c.phase, c.rate) * dt;
         if (c.s > lim) c.s -= lim * 2;
         else if (c.s < -lim) c.s += lim * 2;
         if (c.axis === 0) {
@@ -121,10 +151,11 @@ export function Traffic({ cars, highwayCars, visible }: { cars: number; highwayC
     }
     const h = hwRef.current;
     if (h) {
-      for (let i = 0; i < hw.length; i++) {
+      h.count = Math.round(hw.length * density);
+      for (let i = 0; i < h.count; i++) {
         const c = hw[i];
         const lut = highways[c.h].lut;
-        c.u += c.speed * dt;
+        c.u += c.speed * cruise(T, c.phase, c.rate) * dt;
         if (!lut.closed) c.u = ((c.u % 1) + 1) % 1;
         samplePath(lut, c.u, p, t);
         p.x += -t.y * c.offset;
@@ -201,7 +232,8 @@ export function FlyingVehicles({ count, visible }: { count: number; visible: boo
     time.current += Math.min(rawDt, 0.1);
     const T = time.current;
     const { m, q, e, p, s } = tmp;
-    for (let i = 0; i < flyers.length; i++) {
+    ref.current.count = Math.round(flyers.length * DENSITY_FACTOR[useCyberStore.getState().flyerDensity]);
+    for (let i = 0; i < ref.current.count; i++) {
       const f = flyers[i];
       const a = f.phase + T * f.speed;
       p.set(f.cx + Math.cos(a) * f.r, f.alt + Math.sin(T * 0.4 + f.phase) * f.wobble, f.cz + Math.sin(a) * f.r * f.ellipse);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import { DISTRICT_INDEX } from '../../data/cyberpunk/citySimulation';
 import { DISTRICTS } from '../../data/cyberpunk/districts';
 import { LENS_SCALES, lensValue } from '../../data/cyberpunk/simulatedMetrics';
 import { useCyberStore } from '../../stores/cyberpunkStore';
@@ -48,6 +49,7 @@ export function BuildingInstances({ visible }: { visible: boolean }) {
       const aTint = new Float32Array(n * 4);
       const aParams = new Float32Array(n * 4);
       const aAccent = new Float32Array(n * 4);
+      const aDistrict = new Float32Array(n);
       const mesh = new THREE.InstancedMesh(geometry, facade, n);
       const buildingOf = new Int32Array(n);
       parts.forEach((p, i) => {
@@ -66,12 +68,14 @@ export function BuildingInstances({ visible }: { visible: boolean }) {
         aParams.set([b.seed % 10000, p.style, b.windowWidth, b.floorHeight], i * 4);
         accent.set(def.accent);
         aAccent.set([accent.r, accent.g, accent.b, p.crown ? ACCENT_STRENGTH[b.district] : 0], i * 4);
+        aDistrict[i] = DISTRICT_INDEX[b.district];
         buildingOf[i] = b.id;
         instancesOf[b.id].push({ batch: batches.length, index: i });
       });
       geometry.setAttribute('aTint', new THREE.InstancedBufferAttribute(aTint, 4));
       geometry.setAttribute('aParams', new THREE.InstancedBufferAttribute(aParams, 4));
       geometry.setAttribute('aAccent', new THREE.InstancedBufferAttribute(aAccent, 4));
+      geometry.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(aDistrict, 1));
       const overlay = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
       const state = new THREE.InstancedBufferAttribute(new Float32Array(n * 2), 2);
       overlay.setUsage(THREE.DynamicDrawUsage);

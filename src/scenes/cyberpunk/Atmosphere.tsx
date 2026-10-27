@@ -1,15 +1,32 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createRng } from '../../utils/random';
 import { useCyberResources } from './resources';
 
-/** Night sky dome: gradient, city light-pollution glow at the horizon, stars and a hazy moon. */
+/**
+ * Sky dome driven by the time-of-day and weather state: gradient, sun and moon,
+ * city light-pollution glow, stars, a drifting cloud layer and lightning.
+ * The horizon colour is also the fog colour, so distant towers dissolve into it.
+ */
 export function SkyDome() {
   const { uniforms } = useCyberResources();
   const mat = useMemo(() => {
     const m = new THREE.ShaderMaterial({
-      uniforms: { uTime: uniforms.uTime, uDusk: uniforms.uDusk },
+      uniforms: {
+        uTime: uniforms.uTime,
+        uZenith: uniforms.uZenith,
+        uSkyMid: uniforms.uSkyMid,
+        uHorizon: uniforms.uHorizon,
+        uSunDir: uniforms.uSunDir,
+        uSunColor: uniforms.uSunColor,
+        uMoonDir: uniforms.uMoonDir,
+        uStars: uniforms.uStars,
+        uCloud: uniforms.uCloud,
+        uCityGlow: uniforms.uCityGlow,
+        uDaylight: uniforms.uDaylight,
+        uFlash: uniforms.uFlash,
+      },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
@@ -18,32 +35,49 @@ export function SkyDome() {
           gl_Position = p.xyww;
         }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime; uniform float uDusk;
+        uniform float uTime; uniform vec3 uZenith; uniform vec3 uSkyMid; uniform vec3 uHorizon;
+        uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uMoonDir;
+        uniform float uStars; uniform float uCloud; uniform float uCityGlow; uniform float uDaylight; uniform float uFlash;
         varying vec3 vDir;
         float h(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n2(vec2 p) {
+          vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), u.x), mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        float fbm(vec2 p) { return n2(p) * 0.5 + n2(p * 2.1 + 3.1) * 0.3 + n2(p * 4.3 + 7.7) * 0.2; }
         void main() {
           vec3 d = normalize(vDir);
           float y = d.y;
-          vec3 zenith = mix(vec3(0.004, 0.005, 0.016), vec3(0.02, 0.025, 0.07), uDusk);
-          vec3 mid = mix(vec3(0.02, 0.012, 0.05), vec3(0.09, 0.05, 0.16), uDusk);
-          // Horizon matches the scene fog colour (linear) so distant towers dissolve into haze.
-          vec3 horizon = mix(vec3(0.0252, 0.011, 0.0513), vec3(0.102, 0.0356, 0.117), uDusk);
-          vec3 col = mix(horizon, mid, smoothstep(0.0, 0.22, y));
-          col = mix(col, zenith, smoothstep(0.22, 0.8, y));
+          vec3 col = mix(uHorizon, uSkyMid, smoothstep(0.0, 0.22, y));
+          col = mix(col, uZenith, smoothstep(0.22, 0.8, y));
           // City light-pollution glow just above the skyline.
-          col += vec3(0.07, 0.022, 0.08) * exp(-max(y, 0.0) * 12.0) * step(0.0, y);
+          col += vec3(0.07, 0.022, 0.08) * exp(-max(y, 0.0) * 12.0) * step(0.0, y) * uCityGlow;
+          float clear = 1.0 - uCloud;
           // Stars above the glow band.
           vec3 sp = floor(d * 380.0);
           float star = step(0.9965, h(sp)) * smoothstep(0.08, 0.35, y);
           star *= 0.6 + 0.4 * sin(uTime * 1.3 + h(sp + 3.0) * 30.0);
-          col += vec3(0.75, 0.82, 1.0) * star * (1.0 - uDusk * 0.7);
+          col += vec3(0.75, 0.82, 1.0) * star * uStars * clear;
+          // Sun: disc plus a warm halo, only above the horizon.
+          float sd = dot(d, uSunDir);
+          float sunUp = smoothstep(-0.05, 0.05, uSunDir.y);
+          col += uSunColor * (smoothstep(0.9993, 0.9996, sd) * 6.0 + pow(max(sd, 0.0), 60.0) * 0.6 + pow(max(sd, 0.0), 6.0) * 0.12) * sunUp * mix(1.0, 0.25, uCloud);
           // Moon.
-          vec3 moonDir = normalize(vec3(-0.45, 0.42, -0.78));
-          float md = dot(d, moonDir);
-          col += vec3(0.85, 0.9, 1.0) * smoothstep(0.99935, 0.99955, md) * 1.6;
-          col += vec3(0.25, 0.3, 0.55) * pow(max(md, 0.0), 220.0) * 0.6;
+          float md = dot(d, uMoonDir);
+          float moonVis = (1.0 - smoothstep(0.15, 0.6, uDaylight)) * mix(1.0, 0.3, uCloud);
+          col += vec3(0.85, 0.9, 1.0) * smoothstep(0.99935, 0.99955, md) * 1.6 * moonVis;
+          col += vec3(0.25, 0.3, 0.55) * pow(max(md, 0.0), 220.0) * 0.6 * moonVis;
+          // Drifting cloud layer, projected onto a plane above the city.
+          vec2 cp = d.xz / max(y + 0.12, 0.05) * 1.3 + vec2(uTime * 0.012, uTime * 0.004);
+          float cn = fbm(cp);
+          float cover = smoothstep(0.75 - uCloud * 0.55, 0.95 - uCloud * 0.4, cn) * smoothstep(0.0, 0.12, y);
+          vec3 cloudCol = mix(uHorizon * 0.8, uSkyMid * 0.9 + uHorizon * 0.25, cn) * mix(1.0, 0.6, uCloud);
+          cloudCol += vec3(0.55, 0.6, 0.85) * uFlash * (0.4 + cn);
+          col = mix(col, cloudCol, cover * (0.35 + 0.6 * uCloud));
+          col += vec3(0.3, 0.33, 0.45) * uFlash * 0.35 * smoothstep(-0.05, 0.4, y);
           col = max(col, vec3(0.0));
-          if (y < 0.0) col = horizon;
+          if (y < 0.0) col = uHorizon;
           gl_FragColor = vec4(col, 1.0);
           #include <colorspace_fragment>
         }`,
@@ -64,10 +98,12 @@ export function SkyDome() {
 
 /**
  * GPU rain: streaks wrap around the camera inside a box, so the CPU cost is zero
- * per frame. Intensity hides a fraction of drops in the vertex shader.
+ * per frame. The weather-driven `uRain` uniform hides a fraction of drops in the
+ * vertex shader, so weather changes fade the rain in and out.
  */
-export function Rain({ count, intensity, visible }: { count: number; intensity: number; visible: boolean }) {
+export function Rain({ count }: { count: number }) {
   const { uniforms } = useCyberResources();
+  const ref = useRef<THREE.LineSegments>(null);
 
   const { geometry, material } = useMemo(() => {
     const rng = createRng(555);
@@ -85,7 +121,7 @@ export function Rain({ count, intensity, visible }: { count: number; intensity: 
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 4));
     g.setAttribute('aEnd', new THREE.BufferAttribute(ends, 1));
     const m = new THREE.ShaderMaterial({
-      uniforms: { uTime: uniforms.uTime, uIntensity: { value: intensity }, uBox: { value: new THREE.Vector3(140, 110, 140) } },
+      uniforms: { uTime: uniforms.uTime, uIntensity: uniforms.uRain, uBox: { value: new THREE.Vector3(140, 110, 140) } },
       vertexShader: /* glsl */ `
         uniform float uTime; uniform float uIntensity; uniform vec3 uBox;
         attribute vec4 aSeed; attribute float aEnd;
@@ -111,11 +147,11 @@ export function Rain({ count, intensity, visible }: { count: number; intensity: 
       blending: THREE.AdditiveBlending,
     });
     return { geometry: g, material: m };
-    // Intensity is applied through the uniform below without rebuilding.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, uniforms]);
 
-  material.uniforms.uIntensity.value = intensity;
+  useFrame(() => {
+    if (ref.current) ref.current.visible = uniforms.uRain.value > 0.004;
+  });
 
   useEffect(
     () => () => {
@@ -125,7 +161,7 @@ export function Rain({ count, intensity, visible }: { count: number; intensity: 
     [geometry, material],
   );
 
-  return <lineSegments geometry={geometry} material={material} frustumCulled={false} visible={visible} renderOrder={5} />;
+  return <lineSegments ref={ref} geometry={geometry} material={material} frustumCulled={false} renderOrder={5} />;
 }
 
 /** Sparse drifting motes catching the neon light. */

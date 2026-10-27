@@ -138,6 +138,14 @@ const TYPES: Record<DistrictId, string[]> = {
   residential: ['Apartment block', 'Residential tower', 'Co-living complex', 'Townhouse terrace'],
 };
 
+/** District of the block nearest to a world position, or null outside the grid. */
+export function districtAt(x: number, z: number): DistrictId | null {
+  const ix = Math.round(x / PITCH) + HALF_GRID;
+  const iz = Math.round(z / PITCH) + HALF_GRID;
+  if (ix < 0 || iz < 0 || ix >= CITY.gridSize || iz >= CITY.gridSize) return null;
+  return districtFor(ix, iz);
+}
+
 function districtFor(ix: number, iz: number): DistrictId {
   const dx = ix - HALF_GRID;
   const dz = iz - HALF_GRID;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { OUTSIDE_INDEX } from '../../data/cyberpunk/citySimulation';
 import { CITY_HALF_EXTENT } from '../../data/cyberpunk/config';
 import { createRng } from '../../utils/random';
 import { useCyberResources } from './resources';
@@ -41,6 +42,7 @@ export function DistantSkyline({ count = 520 }: { count?: number }) {
     geometry.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 4));
     geometry.setAttribute('aParams', new THREE.InstancedBufferAttribute(params, 4));
     geometry.setAttribute('aAccent', new THREE.InstancedBufferAttribute(accent, 4));
+    geometry.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(new Float32Array(count).fill(OUTSIDE_INDEX), 1));
     geometry.setAttribute('aOverlay', new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4));
     geometry.setAttribute('aState', new THREE.InstancedBufferAttribute(new Float32Array(count * 2), 2));
     m.instanceMatrix.needsUpdate = true;

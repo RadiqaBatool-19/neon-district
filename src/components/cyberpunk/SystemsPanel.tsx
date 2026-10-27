@@ -1,15 +1,24 @@
-import { Building2, Car, CloudRain, Gauge, Plane, Route, Signpost, Sparkles } from 'lucide-react';
+import { useState, type KeyboardEvent } from 'react';
+import { Building2, Car, Gauge, Plane, Route, Signpost } from 'lucide-react';
 import type { QualityLevel } from '../../data/cyberpunk/config';
 import { LENS_SCALES, type DataLens } from '../../data/cyberpunk/simulatedMetrics';
-import { useCyberStore } from '../../stores/cyberpunkStore';
+import { useCyberStore, type Density } from '../../stores/cyberpunkStore';
 import { cssGradient } from '../../utils/colorRamp';
 import { Section, Segmented, SimTag, Slider, Toggle } from './controls';
+import { EnvironmentPanel } from './EnvironmentPanel';
+import { SimulationPanel } from './SimulationPanel';
 
 const LENS_OPTIONS: { value: DataLens; label: string }[] = [
   { value: 'none', label: 'Off' },
   { value: 'energy', label: 'Energy' },
   { value: 'temperature', label: 'Temp' },
   { value: 'air', label: 'Air' },
+];
+
+const DENSITY_OPTIONS: { value: Density; label: string }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'heavy', label: 'Heavy' },
 ];
 
 export function LensLegend({ lens }: { lens: Exclude<DataLens, 'none'> }) {
@@ -31,28 +40,30 @@ export function LensLegend({ lens }: { lens: Exclude<DataLens, 'none'> }) {
   );
 }
 
-/** Scene systems: layers, data lens, atmosphere, lighting and performance. */
-export function SystemsPanel() {
+/** City life: activity, traffic, layers and the data lens. */
+function CityTab() {
   const layers = useCyberStore((s) => s.layers);
   const toggleLayer = useCyberStore((s) => s.toggleLayer);
   const lens = useCyberStore((s) => s.dataLens);
   const setLens = useCyberStore((s) => s.setDataLens);
-  const rain = useCyberStore((s) => s.rain);
-  const setRain = useCyberStore((s) => s.setRain);
-  const rainIntensity = useCyberStore((s) => s.rainIntensity);
-  const setRainIntensity = useCyberStore((s) => s.setRainIntensity);
-  const particles = useCyberStore((s) => s.particles);
-  const setParticles = useCyberStore((s) => s.setParticles);
-  const night = useCyberStore((s) => s.nightLevel);
-  const setNight = useCyberStore((s) => s.setNightLevel);
-  const quality = useCyberStore((s) => s.quality);
-  const setQuality = useCyberStore((s) => s.setQuality);
-  const autoQuality = useCyberStore((s) => s.autoQuality);
-  const reduced = useCyberStore((s) => s.reducedEffects);
-  const setReduced = useCyberStore((s) => s.setReducedEffects);
+  const activity = useCyberStore((s) => s.cityActivity);
+  const setActivity = useCyberStore((s) => s.setCityActivity);
+  const traffic = useCyberStore((s) => s.trafficDensity);
+  const setTraffic = useCyberStore((s) => s.setTrafficDensity);
+  const flyers = useCyberStore((s) => s.flyerDensity);
+  const setFlyers = useCyberStore((s) => s.setFlyerDensity);
 
   return (
-    <div className="cp-systems">
+    <>
+      <Section title="City activity" aside={<SimTag compact />}>
+        <Slider label="City activity" value={activity} onChange={setActivity} left="Quiet" right="Bustling" />
+        <p className="cp-hint">Drives lit windows and sign flicker per district, following each district's daily rhythm.</p>
+        <div className="cp-field-label">Street traffic</div>
+        <Segmented<Density> label="Street traffic density" value={traffic} options={DENSITY_OPTIONS} onChange={setTraffic} />
+        <div className="cp-field-label">Air traffic</div>
+        <Segmented<Density> label="Air traffic density" value={flyers} options={DENSITY_OPTIONS} onChange={setFlyers} />
+      </Section>
+
       <Section title="Layers">
         <Toggle label="Buildings" icon={<Building2 size={14} />} checked={layers.buildings} onChange={() => toggleLayer('buildings')} />
         <Toggle label="Roads & highways" icon={<Route size={14} />} checked={layers.roads} onChange={() => toggleLayer('roads')} />
@@ -65,28 +76,80 @@ export function SystemsPanel() {
         <Segmented label="Data lens" value={lens} options={LENS_OPTIONS} onChange={setLens} />
         {lens !== 'none' && <LensLegend lens={lens} />}
       </Section>
+    </>
+  );
+}
 
-      <Section title="Atmosphere">
-        <Toggle label="Rain" icon={<CloudRain size={14} />} checked={rain} onChange={setRain} />
-        <Slider label="Rain intensity" value={rainIntensity} onChange={setRainIntensity} disabled={!rain} left="Drizzle" right="Storm" />
-        <Toggle label="Drifting particles" icon={<Sparkles size={14} />} checked={particles} onChange={setParticles} />
-        <div className="cp-field-label">Lighting</div>
-        <Slider label="Lighting" value={night} onChange={setNight} left="Dusk" right="Deep night" />
-      </Section>
+function DisplayTab() {
+  const quality = useCyberStore((s) => s.quality);
+  const setQuality = useCyberStore((s) => s.setQuality);
+  const autoQuality = useCyberStore((s) => s.autoQuality);
+  const reduced = useCyberStore((s) => s.reducedEffects);
+  const setReduced = useCyberStore((s) => s.setReducedEffects);
 
-      <Section title="Performance" aside={autoQuality ? <span className="cp-muted">auto</span> : undefined}>
-        <Segmented<QualityLevel>
-          label="Scene detail"
-          value={quality}
-          options={[
-            { value: 'low', label: 'Low' },
-            { value: 'medium', label: 'Medium' },
-            { value: 'high', label: 'High' },
-          ]}
-          onChange={(q) => setQuality(q)}
-        />
-        <Toggle label="Reduced effects" icon={<Gauge size={14} />} checked={reduced} onChange={setReduced} hint="Halves traffic and rain, removes grain, aberration and shadows" />
-      </Section>
+  return (
+    <Section title="Performance" aside={autoQuality ? <span className="cp-muted">auto</span> : undefined}>
+      <Segmented<QualityLevel>
+        label="Scene detail"
+        value={quality}
+        options={[
+          { value: 'low', label: 'Low' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'high', label: 'High' },
+        ]}
+        onChange={(q) => setQuality(q)}
+      />
+      <Toggle label="Reduced effects" icon={<Gauge size={14} />} checked={reduced} onChange={setReduced} hint="Halves traffic and rain, removes grain, aberration, shadows and lightning flashes" />
+    </Section>
+  );
+}
+
+const TABS = [
+  { id: 'environment', label: 'Sky' },
+  { id: 'city', label: 'City' },
+  { id: 'simulation', label: 'Simulate' },
+  { id: 'display', label: 'Display' },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
+
+/** Scene systems, grouped into tabs so the panel stays short. */
+export function SystemsPanel() {
+  const [tab, setTab] = useState<TabId>('environment');
+
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const i = TABS.findIndex((t) => t.id === tab);
+    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+    setTab(next.id);
+    document.getElementById(`cp-tab-${next.id}`)?.focus();
+  };
+
+  return (
+    <div className="cp-systems">
+      <div className="cp-tabs" role="tablist" aria-label="Scene systems" onKeyDown={onKey}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            id={`cp-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`cp-tabpanel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            className={tab === t.id ? 'is-active' : ''}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`cp-tabpanel-${tab}`} aria-labelledby={`cp-tab-${tab}`}>
+        {tab === 'environment' && <EnvironmentPanel />}
+        {tab === 'city' && <CityTab />}
+        {tab === 'simulation' && <SimulationPanel />}
+        {tab === 'display' && <DisplayTab />}
+      </div>
     </div>
   );
 }

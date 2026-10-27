@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleHelp, Move3d, Orbit, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal, X } from 'lucide-react';
 import { DISTRICTS } from '../../data/cyberpunk/districts';
 import { getCityPlan } from '../../scenes/cyberpunk/cityGenerator';
 import { useCyberStore } from '../../stores/cyberpunkStore';
 import { isTypingTarget } from '../../utils/webgl';
 import { SiteNav } from '../shared/SiteNav';
 import { BuildingInfoPanel } from './BuildingInfoPanel';
+import { CameraBar } from './CameraBar';
+import { EventBanner } from './EventBanner';
 import { DistrictRail } from './DistrictRail';
 import { MetricsPanel } from './MetricsPanel';
 import { LensLegend, SystemsPanel } from './SystemsPanel';
@@ -55,14 +57,14 @@ function HelpCard({ onClose }: { onClose: () => void }) {
         </button>
       </header>
       <ul>
-        <li><kbd>Drag</kbd> orbit</li>
-        <li><kbd>Right-drag</kbd> pan</li>
-        <li><kbd>Wheel</kbd> zoom to cursor</li>
-        <li><kbd>W A S D</kbd> move · <kbd>Q E</kbd> altitude</li>
-        <li><kbd>Shift</kbd> move faster</li>
+        <li><kbd>O</kbd> orbit · <kbd>F</kbd> fly · <kbd>G</kbd> walk · <kbd>R</kbd> reset</li>
+        <li><strong>Orbit</strong> <kbd>Drag</kbd> rotate · <kbd>Right-drag</kbd> pan · <kbd>Wheel</kbd> zoom</li>
+        <li><strong>Fly / Walk</strong> <kbd>Drag</kbd> look around</li>
+        <li><kbd>W A S D</kbd> move · <kbd>Q E</kbd> altitude (fly)</li>
+        <li><kbd>Shift</kbd> faster · speed slider in the move bar</li>
+        <li><strong>Mouse look</strong> no dragging needed · <kbd>Esc</kbd> releases</li>
         <li><kbd>Click</kbd> inspect building · <kbd>Esc</kbd> close</li>
-        <li><kbd>R</kbd> reset view · <kbd>F</kbd> free / orbit</li>
-        <li><kbd>Pinch</kbd> zoom · <kbd>Two-finger drag</kbd> pan</li>
+        <li><strong>Touch</strong> drag to look · on-screen pad to move</li>
       </ul>
     </div>
   );
@@ -71,9 +73,6 @@ function HelpCard({ onClose }: { onClose: () => void }) {
 export function CityHUD({ visible }: { visible: boolean }) {
   const selectedId = useCyberStore((s) => s.selectedId);
   const lens = useCyberStore((s) => s.dataLens);
-  const cameraMode = useCyberStore((s) => s.cameraMode);
-  const setCameraMode = useCyberStore((s) => s.setCameraMode);
-  const resetView = useCyberStore((s) => s.resetView);
   const [systemsOpen, setSystemsOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 900);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -83,11 +82,15 @@ export function CityHUD({ visible }: { visible: boolean }) {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       const s = useCyberStore.getState();
+      // Text fields, sliders and selects are excluded above; letter keys never operate buttons, so they stay global.
+      const k = e.key.toLowerCase();
       if (e.key === 'Escape') {
         if (s.selectedId !== null) s.select(null);
         else setHelpOpen(false);
-      } else if (e.key === 'r' || e.key === 'R') s.resetView();
-      else if (e.key === 'f' || e.key === 'F') s.setCameraMode(s.cameraMode === 'free' ? 'orbit' : 'free');
+      } else if (k === 'r') s.resetView();
+      else if (k === 'o') s.setCameraMode('orbit');
+      else if (k === 'f') s.setCameraMode(s.cameraMode === 'fly' ? 'orbit' : 'fly');
+      else if (k === 'g') s.setCameraMode(s.cameraMode === 'walk' ? 'orbit' : 'walk');
       else if (e.key === '?') setHelpOpen((v) => !v);
     };
     window.addEventListener('keydown', onKey);
@@ -142,22 +145,8 @@ export function CityHUD({ visible }: { visible: boolean }) {
 
       <MetricsPanel />
 
-      <div className="cp-viewbar" role="toolbar" aria-label="View">
-        <button type="button" className="cp-btn" onClick={resetView} title="Reset view (R)">
-          <RotateCcw size={14} /> Reset view
-        </button>
-        <div className="cp-seg cp-seg--icons" role="radiogroup" aria-label="Camera mode">
-          <button type="button" role="radio" aria-checked={cameraMode === 'orbit'} className={cameraMode === 'orbit' ? 'is-active' : ''} onClick={() => setCameraMode('orbit')} title="Orbit — cinematic limits">
-            <Orbit size={14} /> Orbit
-          </button>
-          <button type="button" role="radio" aria-checked={cameraMode === 'free'} className={cameraMode === 'free' ? 'is-active' : ''} onClick={() => setCameraMode('free')} title="Free exploration — fly to street level (F)">
-            <Move3d size={14} /> Free
-          </button>
-        </div>
-        <button type="button" className="cp-icon-btn" onClick={() => setHelpOpen((v) => !v)} aria-label="Controls help" aria-expanded={helpOpen}>
-          <CircleHelp size={16} />
-        </button>
-      </div>
+      <EventBanner />
+      <CameraBar helpOpen={helpOpen} onHelp={() => setHelpOpen((v) => !v)} />
 
       {helpOpen && <HelpCard onClose={() => setHelpOpen(false)} />}
       <HoverTooltip />

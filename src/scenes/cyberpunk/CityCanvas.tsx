@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { QUALITY } from '../../data/cyberpunk/config';
-import { useCyberStore } from '../../stores/cyberpunkStore';
+import { DENSITY_FACTOR, useCyberStore } from '../../stores/cyberpunkStore';
 import { frameStats } from '../../utils/frameStats';
 import { DriftParticles, Rain, SkyDome } from './Atmosphere';
 import { BuildingInstances } from './BuildingInstances';
@@ -17,6 +17,9 @@ import { CyberResourcesProvider } from './resources';
 import { RoofProps } from './RoofProps';
 import { StreetLevel } from './StreetLevel';
 import { FlyingVehicles, Traffic } from './Traffic';
+
+/** 'normal' density (0.65 of the buffer) matches the preset's original vehicle counts. */
+const HEAVY_HEADROOM = 1 / DENSITY_FACTOR.normal;
 
 /** Compiles shaders up-front, then reports ready after a couple of rendered frames. */
 function ReadySignal({ onReady }: { onReady: () => void }) {
@@ -47,10 +50,11 @@ function SceneContent({ onReady }: { onReady: () => void }) {
   const quality = useCyberStore((s) => s.quality);
   const reduced = useCyberStore((s) => s.reducedEffects);
   const layers = useCyberStore((s) => s.layers);
-  const rain = useCyberStore((s) => s.rain);
-  const rainIntensity = useCyberStore((s) => s.rainIntensity);
   const particles = useCyberStore((s) => s.particles);
   const preset = QUALITY[quality];
+  // Vehicle buffers are sized for heavy traffic; the density controls pick how many are drawn.
+  const carCap = Math.round((reduced ? 0.5 : 1) * preset.cars * HEAVY_HEADROOM);
+  const flyerCap = Math.round((reduced ? 0.5 : 1) * preset.flyers * HEAVY_HEADROOM);
 
   const stepDown = () => {
     const s = useCyberStore.getState();
@@ -70,9 +74,9 @@ function SceneContent({ onReady }: { onReady: () => void }) {
       <Plaza />
       <DistantSkyline count={quality === 'low' ? 320 : 520} />
       <Highways visible={layers.roads} />
-      <Traffic cars={reduced ? Math.round(preset.cars * 0.5) : preset.cars} highwayCars={preset.highwayCars} visible={layers.traffic && layers.roads} />
-      <FlyingVehicles count={reduced ? Math.round(preset.flyers * 0.5) : preset.flyers} visible={layers.flying} />
-      <Rain count={reduced ? Math.round(preset.rainDrops * 0.4) : preset.rainDrops} intensity={rainIntensity} visible={rain} />
+      <Traffic cars={carCap} highwayCars={Math.round(preset.highwayCars * HEAVY_HEADROOM)} visible={layers.traffic && layers.roads} />
+      <FlyingVehicles count={flyerCap} visible={layers.flying} />
+      <Rain count={reduced ? Math.round(preset.rainDrops * 0.4) : preset.rainDrops} />
       <DriftParticles count={preset.particles} visible={particles && !reduced} />
       <CameraRig />
       <PostFX preset={preset} reduced={reduced} />

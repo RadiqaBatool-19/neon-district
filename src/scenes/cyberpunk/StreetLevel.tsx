@@ -1,13 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { DISTRICT_INDEX } from '../../data/cyberpunk/citySimulation';
 import { CITY } from '../../data/cyberpunk/config';
-import { useCyberResources } from './resources';
+import { districtIndexAt, useCyberResources } from './resources';
 
 const POLE_H = 7.2;
 
-/** Ground, sidewalks, street lights and their light pools. */
+/**
+ * Ground, sidewalks, street lights and their light pools, plus the event-zone
+ * outlines drawn over blocks of districts with an active simulated event.
+ * Lamps and pools switch with time of day and district power in their shaders.
+ */
 export function StreetLevel({ visible }: { visible: boolean }) {
-  const { plan, ground, glow } = useCyberResources();
+  const { plan, ground, streetGlow, lamp, zone } = useCyberResources();
   const blocks = useMemo(() => plan.blocks.filter((b) => b.district !== 'plaza'), [plan]);
   const lights = plan.streetLights;
 
@@ -16,20 +21,40 @@ export function StreetLevel({ visible }: { visible: boolean }) {
   const armRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   const poolRef = useRef<THREE.InstancedMesh>(null);
+  const zoneRef = useRef<THREE.InstancedMesh>(null);
 
-  const poolGeometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const { poolGeometry, headGeometry } = useMemo(() => {
+    const pool = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const head = new THREE.BoxGeometry(1, 1, 1);
     const colors = new Float32Array(lights.length * 4);
+    const district = new Float32Array(lights.length);
     const c = new THREE.Color();
-    lights.forEach((_, i) => {
+    lights.forEach((l, i) => {
       // Mostly cool white, with an occasional sodium-amber lamp.
       c.set(i % 9 === 0 ? '#ffb070' : '#9fdcff');
       colors.set([c.r, c.g, c.b, 0.32], i * 4);
+      district[i] = districtIndexAt(l.x, l.z);
     });
-    g.setAttribute('aColor', new THREE.InstancedBufferAttribute(colors, 4));
-    return g;
+    pool.setAttribute('aColor', new THREE.InstancedBufferAttribute(colors, 4));
+    pool.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(district, 1));
+    head.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(district, 1));
+    return { poolGeometry: pool, headGeometry: head };
   }, [lights]);
-  useEffect(() => () => poolGeometry.dispose(), [poolGeometry]);
+
+  const zoneGeometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    g.setAttribute('aDistrict', new THREE.InstancedBufferAttribute(new Float32Array(plan.blocks.map((b) => DISTRICT_INDEX[b.district])), 1));
+    return g;
+  }, [plan]);
+
+  useEffect(
+    () => () => {
+      poolGeometry.dispose();
+      headGeometry.dispose();
+      zoneGeometry.dispose();
+    },
+    [poolGeometry, headGeometry, zoneGeometry],
+  );
 
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
@@ -44,6 +69,14 @@ export function StreetLevel({ visible }: { visible: boolean }) {
     });
     slabRef.current!.instanceMatrix.needsUpdate = true;
     slabRef.current!.computeBoundingSphere();
+
+    plan.blocks.forEach((b, i) => {
+      // Slightly larger than the block so the outline sits on the kerb line.
+      m.compose(p.set(b.x, 0.45, b.z), q.identity(), s.set(CITY.blockSize + 3, 1, CITY.blockSize + 3));
+      zoneRef.current!.setMatrixAt(i, m);
+    });
+    zoneRef.current!.instanceMatrix.needsUpdate = true;
+    zoneRef.current!.computeBoundingSphere();
 
     lights.forEach((l, i) => {
       const dx = Math.cos(l.rot);
@@ -62,13 +95,15 @@ export function StreetLevel({ visible }: { visible: boolean }) {
       r.current!.instanceMatrix.needsUpdate = true;
       r.current!.computeBoundingSphere();
     }
-  }, [blocks, lights]);
+  }, [blocks, lights, plan]);
 
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} material={ground} receiveShadow>
         <planeGeometry args={[3600, 3600, 1, 1]} />
       </mesh>
+      {/* Event zones stay visible even with the roads layer off: they mark an affected area. */}
+      <instancedMesh ref={zoneRef} args={[zoneGeometry, zone, plan.blocks.length]} renderOrder={3} frustumCulled={false} />
       <group visible={visible}>
         <instancedMesh ref={slabRef} args={[undefined, undefined, blocks.length]} receiveShadow>
           <boxGeometry args={[1, 1, 1]} />
@@ -82,11 +117,8 @@ export function StreetLevel({ visible }: { visible: boolean }) {
           <boxGeometry args={[1, 1, 1]} />
           <meshStandardMaterial color="#1b1e28" roughness={0.5} metalness={0.8} />
         </instancedMesh>
-        <instancedMesh ref={headRef} args={[undefined, undefined, lights.length]}>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial color={new THREE.Color('#cfefff').multiplyScalar(3.2)} toneMapped={false} />
-        </instancedMesh>
-        <instancedMesh ref={poolRef} args={[poolGeometry, glow, lights.length]} renderOrder={2} />
+        <instancedMesh ref={headRef} args={[headGeometry, lamp, lights.length]} />
+        <instancedMesh ref={poolRef} args={[poolGeometry, streetGlow, lights.length]} renderOrder={2} />
       </group>
     </group>
   );

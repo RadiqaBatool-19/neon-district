@@ -1,4 +1,5 @@
 import { Crosshair, X } from 'lucide-react';
+import { EVENT_INFO } from '../../data/cyberpunk/citySimulation';
 import { DISTRICTS } from '../../data/cyberpunk/districts';
 import { getCityPlan } from '../../scenes/cyberpunk/cityGenerator';
 import { useCyberStore } from '../../stores/cyberpunkStore';
@@ -21,11 +22,19 @@ const STATUS_CLASS: Record<string, string> = {
 export function BuildingInfoPanel() {
   const selectedId = useCyberStore((s) => s.selectedId);
   const select = useCyberStore((s) => s.select);
+  const events = useCyberStore((s) => s.events);
   if (selectedId === null) return null;
   const b = getCityPlan().buildings[selectedId];
   if (!b) return null;
   const d = DISTRICTS[b.district];
   const m = b.metrics;
+  const districtEvents = events.filter((e) => e.district === b.district);
+  const blackout = districtEvents.some((e) => e.kind === 'blackout');
+  const focus = () => {
+    // Focusing is an orbit move; leave fly / walk first.
+    useCyberStore.getState().setCameraMode('orbit');
+    select(b.id);
+  };
 
   return (
     <aside className="cp-panel cp-building" aria-label={`${b.name} details`}>
@@ -63,11 +72,17 @@ export function BuildingInfoPanel() {
         </div>
         <div>
           <dt>Status</dt>
-          <dd className={`cp-status cp-status--${STATUS_CLASS[m.status]}`}>
-            <i /> {m.status}
+          <dd className={`cp-status cp-status--${blackout ? 'alert' : STATUS_CLASS[m.status]}`}>
+            <i /> {blackout ? 'Offline · blackout' : m.status}
           </dd>
         </div>
       </dl>
+
+      {districtEvents.length > 0 && (
+        <p className="cp-building__event" role="status">
+          Simulated event in {d.name}: {districtEvents.map((e) => EVENT_INFO[e.kind].label.toLowerCase()).join(' and ')}.
+        </p>
+      )}
 
       <div className="cp-building__sim">
         <div className="cp-building__simhead">
@@ -108,7 +123,7 @@ export function BuildingInfoPanel() {
       </div>
 
       <div className="cp-building__actions">
-        <button type="button" className="cp-btn" onClick={() => select(b.id)}>
+        <button type="button" className="cp-btn" onClick={focus}>
           <Crosshair size={14} /> Focus
         </button>
         <button type="button" className="cp-btn cp-btn--ghost" onClick={() => select(null)}>

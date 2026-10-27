@@ -1,34 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Thermometer, Wind, Zap } from 'lucide-react';
-import { getCityPlan } from '../../scenes/cyberpunk/cityGenerator';
+import { useEffect, useRef } from 'react';
+import { Activity, Clock, Users, Wind, Zap } from 'lucide-react';
+import { WEATHER } from '../../data/cyberpunk/weather';
+import { formatHour } from '../../scenes/cyberpunk/timeOfDay';
+import { useCyberStore } from '../../stores/cyberpunkStore';
 import { frameStats } from '../../utils/frameStats';
 import { SimTag } from './controls';
+import { useCityReadings } from './SimulationPanel';
 
-/** Compact city-wide readout. Aggregates SIMULATED building values with a slow synthetic drift. */
+/** Compact city-wide readout, aggregated from the SIMULATED district model. */
 export function MetricsPanel() {
-  const base = useMemo(() => {
-    const b = getCityPlan().buildings;
-    const energy = b.reduce((a, x) => a + x.metrics.energyMWhDay, 0);
-    const temp = b.reduce((a, x) => a + x.metrics.temperatureC, 0) / b.length;
-    const aqi = b.reduce((a, x) => a + x.metrics.airQualityIndex, 0) / b.length;
-    return { energy, temp, aqi, count: b.length };
-  }, []);
-  const [t, setT] = useState(0);
+  const { readings, hour, events } = useCityReadings(1000);
+  const weather = useCyberStore((s) => s.weather);
   const fpsRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const id = window.setInterval(() => setT((v) => v + 1), 2500);
     const fpsId = window.setInterval(() => {
       if (fpsRef.current) fpsRef.current.textContent = `${Math.round(frameStats.fps())}`;
     }, 500);
-    return () => {
-      window.clearInterval(id);
-      window.clearInterval(fpsId);
-    };
+    return () => window.clearInterval(fpsId);
   }, []);
 
-  const drift = (amp: number, f: number) => 1 + amp * Math.sin(t * f) + amp * 0.4 * Math.sin(t * f * 2.7 + 1);
-  const load = 62 + 9 * Math.sin(t * 0.21) + 3 * Math.sin(t * 0.9);
+  const demand = readings.reduce((a, r) => a + r.demandMW, 0);
+  const activity = readings.reduce((a, r) => a + r.activity, 0) / readings.length;
+  const occupancy = readings.reduce((a, r) => a + r.occupancyPct, 0) / readings.length;
+  const aqi = readings.reduce((a, r) => a + r.aqi, 0) / readings.length;
 
   return (
     <div className="cp-panel cp-metrics" aria-label="City metrics (simulated)">
@@ -39,28 +34,31 @@ export function MetricsPanel() {
       <div className="cp-metrics__grid">
         <div>
           <Zap size={13} />
-          <strong>{((base.energy * drift(0.03, 0.4)) / 1000).toFixed(2)}</strong>
-          <small>GWh/day</small>
+          <strong>{demand.toFixed(0)}</strong>
+          <small>MW demand</small>
         </div>
         <div>
           <Activity size={13} />
-          <strong>{load.toFixed(0)}%</strong>
-          <small>grid load</small>
+          <strong>{Math.round(activity * 100)}%</strong>
+          <small>activity</small>
         </div>
         <div>
-          <Thermometer size={13} />
-          <strong>{(base.temp * drift(0.01, 0.3)).toFixed(1)}°</strong>
-          <small>avg °C</small>
+          <Users size={13} />
+          <strong>{Math.round(occupancy)}%</strong>
+          <small>occupancy</small>
         </div>
         <div>
           <Wind size={13} />
-          <strong>{Math.round(base.aqi * drift(0.04, 0.35))}</strong>
+          <strong>{Math.round(aqi)}</strong>
           <small>avg AQI</small>
         </div>
       </div>
       <div className="cp-metrics__foot">
-        <span>{base.count} structures</span>
         <span>
+          <Clock size={10} /> {formatHour(hour)} · {WEATHER[weather].label}
+          {events.length > 0 && <b className="cp-metrics__alert"> · {events.length} event{events.length > 1 ? 's' : ''}</b>}
+        </span>
+        <span className="cp-metrics__fps">
           <span ref={fpsRef}>–</span> fps
         </span>
       </div>
