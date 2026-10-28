@@ -89,7 +89,7 @@ export function TerrainLayer({ ghostFootprints }: { ghostFootprints: import('../
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 5) return;
     e.stopPropagation();
-    handleSceneClick(model, e.point, null);
+    handleSceneClick(model, e.point, null, e.nativeEvent.shiftKey);
   };
 
   const { minX, maxX, minZ, maxZ } = model.extent;

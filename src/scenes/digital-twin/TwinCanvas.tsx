@@ -5,6 +5,7 @@ import type { TwinModel } from '../../data/digital-twin/buildTwinModel';
 import { useTwinStore } from '../../stores/twinStore';
 import { passesFilters } from '../../data/digital-twin/filters';
 import { BuildingsLayer } from './BuildingsLayer';
+import { CompareMarkers } from './CompareMarkers';
 import { Labels } from './Labels';
 import { MeasureLayer } from './MeasureLayer';
 import { TerrainLayer } from './TerrainLayer';
@@ -50,6 +51,7 @@ function TwinScene({ model }: { model: TwinModel }) {
         <TerrainLayer ghostFootprints={ghostFootprints} />
         {layers.buildings && <BuildingsLayer visibleSet={visibleSet} />}
         {layers.labels && <Labels visibleSet={visibleSet} />}
+        {layers.buildings && <CompareMarkers visibleSet={visibleSet} />}
         <Grid
           position={[(minX + maxX) / 2, -18.5, (minZ + maxZ) / 2]}
           args={[span * 6, span * 6]}
@@ -92,7 +94,8 @@ export default function TwinCanvas({ model }: { model: TwinModel }) {
         if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__twin = { gl, scene, camera, store: useTwinStore, model };
       }}
       onPointerMissed={(e) => {
-        if (e.type === 'click' && useTwinStore.getState().tool === 'none') useTwinStore.getState().select(null);
+        const s = useTwinStore.getState();
+        if (e.type === 'click' && s.tool === 'none' && !s.compareMode && !e.shiftKey) s.select(null);
       }}
     >
       <TwinModelContext.Provider value={model}>

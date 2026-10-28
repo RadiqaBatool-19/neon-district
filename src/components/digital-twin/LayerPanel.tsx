@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { ChevronRight, Filter, Layers3 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { ChevronRight, Filter, Layers3, SlidersHorizontal } from 'lucide-react';
 import type { TwinModel } from '../../data/digital-twin/buildTwinModel';
 import { legendFor, SOURCE_COLORS, SOURCE_LABELS, TYPE_COLORS, TYPE_FALLBACK, typeLabel } from '../../data/digital-twin/styling';
 import type { HeightSource } from '../../data/digital-twin/types';
 import { useTwinStore, type ColorBy, type SurfaceOverlay } from '../../stores/twinStore';
 import { cssGradient } from '../../utils/colorRamp';
 import { SIM_SCALES } from '../../data/digital-twin/simulatedMetrics';
-import { Check, Panel, Seg, SimBadge } from './ui';
+import { Check, InfoTip, Panel, Seg, SimBadge } from './ui';
 
 const COLOR_BY: { value: ColorBy; label: string; simulated?: boolean }[] = [
   { value: 'type', label: 'Building type' },
@@ -21,11 +21,14 @@ function Legend({ model }: { model: TwinModel }) {
   const colorBy = useTwinStore((s) => s.colorBy);
   const spec = legendFor(colorBy, model.stats.types, model.stats.maxHeight);
   return (
-    <div className="tw-legend" aria-label="Legend">
-      <div className="tw-legend__title">
-        {spec.title}
-        {spec.simulated && <SimBadge />}
-      </div>
+    <div className="tw-legend" aria-label={`Legend: ${spec.title}`}>
+      {/* The colour-mode menu above already names the mode; a title is only needed for simulated units. */}
+      {spec.simulated && (
+        <div className="tw-legend__title">
+          {spec.title}
+          <SimBadge />
+        </div>
+      )}
       {spec.kind === 'categorical' ? (
         <ul>
           {spec.items!.map((i) => (
@@ -40,11 +43,13 @@ function Legend({ model }: { model: TwinModel }) {
           <div className="tw-legend__ramp" style={{ background: cssGradient(spec.stops!) }} />
           <div className="tw-legend__ends">
             <span>{spec.min}</span>
-            <span>{spec.max}</span>
+            <span>
+              {spec.max}
+              {spec.note && <InfoTip label="About this legend">{spec.note}</InfoTip>}
+            </span>
           </div>
         </>
       )}
-      {spec.note && <p className="tw-note">{spec.note}</p>}
     </div>
   );
 }
@@ -128,7 +133,6 @@ export function LayerPanel({ model, visibleCount, open }: { model: TwinModel; vi
   const setMark = useTwinStore((s) => s.setMarkEstimated);
   const ex = useTwinStore((s) => s.exaggeration);
   const setEx = useTwinStore((s) => s.setExaggeration);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const hasTerrain = !!model.terrain;
 
   return (
@@ -137,11 +141,11 @@ export function LayerPanel({ model, visibleCount, open }: { model: TwinModel; vi
         <Check label="Buildings" checked={layers.buildings} onChange={() => toggle('buildings')} count={model.buildings.length} />
         <Check label="Roads & paths" checked={layers.roads} onChange={() => toggle('roads')} count={model.roads.length} />
         <Check label="Land use & green" checked={layers.landuse} onChange={() => toggle('landuse')} count={model.landuse.length} />
-        <Check label={hasTerrain ? 'Terrain relief (DEM)' : 'Terrain relief (no DEM loaded)'} checked={layers.terrain && hasTerrain} disabled={!hasTerrain} onChange={() => toggle('terrain')} />
+        <Check label={hasTerrain ? 'Terrain' : 'Terrain (no DEM)'} checked={layers.terrain && hasTerrain} disabled={!hasTerrain} onChange={() => toggle('terrain')} />
         <Check label="Labels" checked={layers.labels} onChange={() => toggle('labels')} />
 
         <label className="tw-field">
-          <span>Colour buildings by</span>
+          <span>Colour by</span>
           <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)}>
             {COLOR_BY.map((c) => (
               <option key={c.value} value={c.value}>
@@ -152,7 +156,9 @@ export function LayerPanel({ model, visibleCount, open }: { model: TwinModel; vi
           </select>
         </label>
         <Legend model={model} />
+      </Panel>
 
+      <Collapsible title="Display" icon={<SlidersHorizontal size={15} />}>
         <div className="tw-field">
           <span>
             Ground overlay <SimBadge />
@@ -171,7 +177,7 @@ export function LayerPanel({ model, visibleCount, open }: { model: TwinModel; vi
         <SurfaceLegend />
 
         <div className="tw-field">
-          <span>Vertical exaggeration (terrain)</span>
+          <span>Terrain exaggeration</span>
           <Seg<number>
             label="Vertical exaggeration"
             value={ex}
@@ -185,17 +191,27 @@ export function LayerPanel({ model, visibleCount, open }: { model: TwinModel; vi
           />
         </div>
         <Check label="Hatch estimated heights" checked={mark} onChange={setMark} />
-      </Panel>
+      </Collapsible>
 
-      <section className="tw-card">
-        <button type="button" className="tw-card__toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((v) => !v)}>
-          <span>
-            <Filter size={15} /> Filters
-          </span>
-          <ChevronRight size={15} className={filtersOpen ? 'is-open' : ''} />
-        </button>
-        {filtersOpen && <Filters model={model} visibleCount={visibleCount} />}
-      </section>
+      <Collapsible title="Filters" icon={<Filter size={15} />}>
+        <Filters model={model} visibleCount={visibleCount} />
+      </Collapsible>
     </aside>
+  );
+}
+
+/** A card whose body expands on demand (closed by default). */
+function Collapsible({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="tw-card">
+      <button type="button" className="tw-card__toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span>
+          {icon} {title}
+        </span>
+        <ChevronRight size={15} className={open ? 'is-open' : ''} />
+      </button>
+      {open && <div className="tw-card__body">{children}</div>}
+    </section>
   );
 }

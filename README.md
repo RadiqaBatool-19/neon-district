@@ -96,6 +96,14 @@ Estimated buildings are hatched in the scene. The inspector shows the source nex
   - **Synthetic metrics**, badged as simulated.
 
   It also has the full OSM tag table, a link to the feature on openstreetmap.org, and OSM version / edit / extract dates. The facts come from one pure module (`data/digital-twin/buildingFacts.ts`), so later comparison and export features can reuse them. Roads can be inspected too.
+- **Building comparison:** there are three ways to add a building:
+  - turn on **Compare** in the toolbar and click buildings (a second click removes one);
+  - **Shift+click** buildings in Inspect mode;
+  - use **Add to comparison** in the inspector.
+
+  Up to 8 buildings, tracked by stable OSM id and separate from the single inspector selection. Compared buildings are tinted violet and numbered in the scene. The table uses the same `buildingFacts` as the inspector, split into OSM source attributes and derived values with their methods. Missing values show "Not available", and estimated heights and the volumes built on them are badged.
+
+  Highest / lowest marks appear only where every building has a value of the same kind; estimated values are never ranked. Hovering a column highlights its building, and each column can zoom to its building, open it in the inspector, or be removed. A building missing from the loaded area keeps a "Not in loaded area" column, and one hidden by filters is flagged. `Esc` closes the table, then leaves compare mode; the set is kept until cleared.
 - **Data validation:** `npm run validate:twin` (Node ≥ 22.18) checks each available area:
   - geometry validity (closed rings, coordinates in the bbox, unique ids) and height-source consistency;
   - the app's measurement code against the QGIS attributes (`footprint_area_m2`, `length_m`);

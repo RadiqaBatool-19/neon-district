@@ -70,6 +70,8 @@ export interface TwinModel {
   /** Area extent in local metres. */
   extent: { minX: number; maxX: number; minZ: number; maxZ: number };
   buildings: TwinBuilding[];
+  /** Stable OSM id (e.g. "way/472380415") → index in `buildings`. */
+  buildingIndexById: Map<string, number>;
   roads: TwinRoad[];
   landuse: TwinLanduse[];
   terrain: TerrainModel | null;
@@ -292,6 +294,7 @@ export function buildTwinModel(data: AreaData, manifest: TwinManifest): TwinMode
     areaOffset,
     extent,
     buildings,
+    buildingIndexById: new Map(buildings.map((b) => [String(b.props.osm_id), b.index])),
     roads,
     landuse,
     terrain,

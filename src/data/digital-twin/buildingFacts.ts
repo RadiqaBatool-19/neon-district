@@ -23,6 +23,8 @@ export interface Fact {
   unit?: string;
   /** How the value was obtained (derived facts only). */
   method?: string;
+  /** True when the value rests on an estimated (not recorded) height. */
+  estimated?: boolean;
 }
 
 export interface BuildingFacts {
@@ -78,34 +80,34 @@ export function buildingFacts(model: TwinModel, index: number): BuildingFacts {
   const roadDist = hasMajorRoad && Number.isFinite(b.distToMajorRoad) ? Math.round(b.distToMajorRoad) : null;
 
   const source: Fact[] = [
-    fact('building', 'Building (building=*)', tag(p, 'building')),
+    fact('building', 'Building type', tag(p, 'building'), undefined, { method: 'OSM tag building=*' }),
     fact('name', 'Name', tag(p, 'name')),
     ...(tag(p, 'name:en') ? [fact('name:en', 'Name (English)', tag(p, 'name:en'))] : []),
-    fact('address', 'Address (addr:*)', addressOf(p)),
-    fact('use', 'Use (amenity / shop / office …)', useOf(p)),
+    fact('address', 'Address', addressOf(p), undefined, { method: 'OSM addr:* tags' }),
+    fact('use', 'Use', useOf(p), undefined, { method: 'OSM amenity, shop, office, tourism, leisure or building:use tags' }),
     fact('operator', 'Operator', tag(p, 'operator')),
-    fact('height', 'Height tag', tag(p, 'height')),
-    fact('building:levels', 'Levels (building:levels)', levels),
-    fact('min_height', 'Min. height tag', tag(p, 'min_height')),
+    fact('height', 'Height tag', tag(p, 'height'), undefined, { method: 'OSM tag height=* (metres unless a unit is given)' }),
+    fact('building:levels', 'Levels', levels, undefined, { method: 'OSM tag building:levels=* (floors above ground)' }),
+    fact('min_height', 'Min. height', tag(p, 'min_height'), undefined, { method: 'OSM tag min_height=* (height of the lowest part above ground)' }),
   ];
 
   const derived: Fact[] = [
-    fact('height_m', 'Height used in 3D', +b.height.toFixed(1), `${b.height.toFixed(1)} m`, { unit: 'm', method: HEIGHT_METHOD[b.source] }),
+    fact('height_m', 'Height used in 3D', +b.height.toFixed(1), `${b.height.toFixed(1)} m`, { unit: 'm', method: HEIGHT_METHOD[b.source], estimated: b.source !== 'recorded' }),
     fact('height_source', 'Height source', b.source, b.source.replace(/_/g, ' '), { method: 'Pipeline rule (meta.json)' }),
     fact('footprint_area_m2', 'Footprint area', +b.footprintArea.toFixed(1), `${Math.round(b.footprintArea).toLocaleString()} m²`, { unit: 'm²', method: 'QGIS, planar in EPSG:32643 (UTM 43N)' }),
-    fact('perimeter_m', 'Footprint perimeter', +perimeter.toFixed(1), `${perimeter.toFixed(1)} m`, { unit: 'm', method: 'Ellipsoidal (Vincenty, WGS84), outer ring' }),
+    fact('perimeter_m', 'Perimeter', +perimeter.toFixed(1), `${perimeter.toFixed(1)} m`, { unit: 'm', method: 'Ellipsoidal (Vincenty, WGS84), outer ring' }),
     fact(
       'volume_m3',
-      b.source === 'recorded' ? 'Volume (footprint × height)' : 'Volume (footprint × estimated height)',
+      'Volume',
       Math.round(volume),
       `${Math.round(volume).toLocaleString()} m³`,
-      { unit: 'm³', method: b.source === 'recorded' ? 'Footprint × recorded height' : 'Uses an estimated height — indicative only' },
+      { unit: 'm³', method: b.source === 'recorded' ? 'Footprint × recorded height' : 'Uses an estimated height — indicative only', estimated: b.source !== 'recorded' },
     ),
     fact('ground_elevation_m', 'Ground elevation', ground === null ? null : +ground.toFixed(1), ground === null ? null : `${ground.toFixed(1)} m ASL`, {
       unit: 'm ASL',
       method: 'Copernicus DEM GLO-30 (surface model), lowest sample under the footprint',
     }),
-    fact('centroid', 'Centroid (lat, lon)', `${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, `${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, { method: 'Vertex mean of the outer ring, WGS84' }),
+    fact('centroid', 'Centroid', `${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, `${centroid.lat.toFixed(6)}, ${centroid.lon.toFixed(6)}`, { method: 'Vertex mean of the outer ring, WGS84' }),
     fact('dist_major_road_m', 'Nearest major road', roadDist, roadDist === null ? null : `${roadDist} m`, {
       unit: 'm',
       method: 'Centroid to the nearest primary / secondary road centreline in this extract',
@@ -113,4 +115,51 @@ export function buildingFacts(model: TwinModel, index: number): BuildingFacts {
   ];
 
   return { source, derived };
+}
+
+/** Numeric derived facts where a min / max across buildings can be meaningful. */
+const COMPARABLE = new Set(['height_m', 'footprint_area_m2', 'perimeter_m', 'volume_m3', 'ground_elevation_m', 'dist_major_road_m']);
+
+export interface CompareRow {
+  key: string;
+  label: string;
+  group: 'source' | 'derived';
+  /** One cell per compared building; null for a building that is not loaded. */
+  cells: (Fact | null)[];
+  /** Shared method when every building uses the same one; otherwise shown per cell. */
+  method: string | null;
+  /**
+   * Min / max to highlight, or null when the comparison would mislead: fewer
+   * than two values, a missing value, or any value resting on an estimate.
+   */
+  extremes: { min: number; max: number } | null;
+}
+
+/**
+ * Rows for a side-by-side comparison, built from the same facts as the
+ * inspector. Rows follow the order of the first loaded building, plus any
+ * conditional rows (e.g. name:en) another building adds.
+ */
+export function compareRows(list: (BuildingFacts | null)[]): CompareRow[] {
+  const rows: CompareRow[] = [];
+  for (const group of ['source', 'derived'] as const) {
+    const order: { key: string; label: string }[] = [];
+    for (const f of list) for (const x of f?.[group] ?? []) if (!order.some((o) => o.key === x.key)) order.push({ key: x.key, label: x.label });
+    for (const { key, label } of order) {
+      const cells = list.map((f) => (f ? f[group].find((x) => x.key === key) ?? { key, label, raw: null, value: null } : null));
+      const loaded = cells.filter((c): c is Fact => c !== null);
+      const methods = new Set(loaded.map((c) => c.method ?? ''));
+      let extremes: CompareRow['extremes'] = null;
+      if (COMPARABLE.has(key) && loaded.length >= 2 && loaded.every((c) => typeof c.raw === 'number' && !c.estimated)) {
+        const nums = loaded.map((c) => c.raw as number);
+        const min = Math.min(...nums);
+        const max = Math.max(...nums);
+        if (max > min) extremes = { min, max };
+      }
+      // The volume label varies with each building's height source; the row needs a neutral one.
+      const rowLabel = key === 'volume_m3' ? 'Volume' : label;
+      rows.push({ key, label: rowLabel, group, cells, method: methods.size === 1 ? [...methods][0] || null : null, extremes });
+    }
+  }
+  return rows;
 }

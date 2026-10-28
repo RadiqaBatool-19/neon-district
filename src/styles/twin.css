@@ -531,7 +531,130 @@
 }
 
 .tw-kv dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--tw-dim);
+}
+
+/* ⓘ button + tooltip */
+.tw-info {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: -2px 0 -2px 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: #94a3b8;
+  cursor: help;
+  flex: none;
+}
+
+.tw-info:hover,
+.tw-info[aria-expanded='true'] {
+  color: var(--tw-accent);
+  background: #eff6ff;
+}
+
+.tw-info:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 1px;
+}
+
+.tw-tip {
+  position: fixed;
+  z-index: 1000;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font: 400 11.5px/1.45 var(--font-ui);
+  text-transform: none;
+  letter-spacing: 0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+
+.tw-tip.is-above {
+  transform: translateY(-100%);
+}
+
+/* Fields a feature lacks, listed on one line instead of a row each. */
+.tw-missing {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.tw-missing span {
+  color: var(--tw-dim);
+  font-weight: 500;
+}
+
+.tw-missing--warn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.tw-missing--warn span {
+  color: #1e3a8a;
+}
+
+.tw-height__src {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tw-card__body {
+  margin-top: 8px;
+}
+
+.tw-details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+
+.tw-details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Flex summaries lose the native marker; draw a chevron instead. */
+.tw-details summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 3px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+}
+
+.tw-details[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.tw-card__body .tw-filters {
+  margin-top: 0;
+}
+
+.tw-legend__ends span {
+  display: inline-flex;
+  align-items: center;
 }
 
 .tw-kv dd {
@@ -654,6 +777,302 @@
 
 .tw-actions {
   margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tw-btn--ghost {
+  background: #fff;
+  color: #0f172a;
+  border-color: var(--tw-line-strong);
+}
+
+.tw-btn--ghost:hover {
+  background: #f5f3ff;
+}
+
+.tw-btn--ghost.is-on {
+  border-color: #7c3aed;
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.tw-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- Comparison ---------- */
+.tw-toolbar__sep {
+  width: 1px;
+  margin: 5px 3px;
+  background: var(--tw-line);
+}
+
+.tw-toolbar__tools button.is-compare {
+  background: #6d28d9;
+}
+
+.tw-toolbar__badge {
+  min-width: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 10.5px;
+  line-height: 17px;
+  text-align: center;
+}
+
+.is-compare .tw-toolbar__badge {
+  background: #fff;
+  color: #6d28d9;
+}
+
+.tw-toolbar__compare {
+  border-color: #ddd6fe;
+}
+
+.tw-compare-pin {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font: 700 11px var(--font-ui);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+}
+
+.tw-compare {
+  position: absolute;
+  left: 304px;
+  right: 344px;
+  bottom: 140px;
+  /* Leave the selected buildings visible above the table on short screens. */
+  max-height: min(calc(100% - 230px), 52vh);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  z-index: 6;
+  overflow: hidden;
+}
+
+.tw-compare__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 8px 14px;
+  border-bottom: 1px solid var(--tw-line);
+}
+
+.tw-compare__head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tw-compare__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tw-compare__empty,
+.tw-compare__foot {
+  margin: 0;
+  padding: 8px 14px 10px;
+}
+
+.tw-compare__foot svg {
+  vertical-align: -1px;
+}
+
+.tw-compare__scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.tw-cmp {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+  font-size: 12px;
+}
+
+.tw-cmp th,
+.tw-cmp td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tw-cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-width: 150px;
+  max-width: 200px;
+  background: #fff;
+  border-bottom: 1px solid var(--tw-line);
+}
+
+.tw-cmp thead th:hover {
+  background: #faf5ff;
+}
+
+.tw-cmp .tw-cmp__field {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 150px;
+  max-width: 190px;
+  background: #f8fafc;
+  font-weight: 500;
+  color: #334155;
+}
+
+.tw-cmp thead .tw-cmp__field {
+  z-index: 3;
+  color: var(--tw-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tw-cmp__field .tw-info {
+  vertical-align: -3px;
+}
+
+.tw-cmp__col {
+  display: flex;
+  gap: 8px;
+}
+
+.tw-cmp__num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tw-cmp__title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tw-cmp__title strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tw-text);
+  overflow-wrap: anywhere;
+}
+
+.tw-cmp__title .tw-mono {
+  font-size: 10.5px;
+  color: var(--tw-dim);
+}
+
+.tw-cmp__type {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--tw-dim);
+}
+
+.tw-cmp__hidden {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #b45309;
+}
+
+.tw-cmp__btns {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 0 28px;
+}
+
+.tw-cmp__btns .tw-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.tw-cmp__group th {
+  padding-top: 10px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #334155;
+}
+
+.tw-cmp__group .tw-prov {
+  margin-left: 6px;
+}
+
+.tw-cmp td {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.tw-cmp__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 500;
+}
+
+.tw-cmp td.is-max {
+  background: #f0fdf4;
+}
+
+.tw-cmp td.is-max svg {
+  color: #15803d;
+}
+
+.tw-cmp td.is-min {
+  background: #fff7ed;
+}
+
+.tw-cmp td.is-min svg {
+  color: #c2410c;
+}
+
+.tw-cmp__est {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+}
+
+
+.tw-cmp__na {
+  font-style: italic;
+  color: #94a3b8;
 }
 
 .tw-btn {
@@ -913,6 +1332,13 @@
 }
 
 /* ---------- Responsive ---------- */
+/* Below this width the full toolbar would reach the scale bar: Compare shows its icon and count only. */
+@media (max-width: 1700px) {
+  .tw-toolbar__tools button.tw-compare-btn span {
+    display: none;
+  }
+}
+
 @media (max-width: 1180px) {
   .tw-widgets {
     right: 12px;
@@ -939,6 +1365,15 @@
 
   .tw-side--right {
     width: 280px;
+  }
+}
+
+/* Between the two side panels there is too little room: the table takes the full width. */
+@media (max-width: 1100px) {
+  .tw-compare {
+    left: 12px;
+    right: 12px;
+    z-index: 7;
   }
 }
 
@@ -1047,6 +1482,17 @@
 
   .tw-toolbar__tools button span {
     display: none;
+  }
+
+  .tw-compare {
+    top: 152px;
+    bottom: 150px;
+    max-height: none;
+  }
+
+  .tw-cmp thead th,
+  .tw-cmp .tw-cmp__field {
+    min-width: 120px;
   }
 
   .tw-attrib {

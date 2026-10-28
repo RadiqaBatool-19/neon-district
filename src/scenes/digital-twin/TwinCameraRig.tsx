@@ -72,14 +72,19 @@ export function TwinCameraRig() {
         if (!req || req === p.cameraRequest || !ref.current) return;
         if (req.kind === 'reset') views.reset();
         else if (req.kind === 'top') views.top();
-        else if (req.kind === 'focus' && s.selection?.kind === 'building') {
-          const b = model.buildings[s.selection.index];
+        else if (req.kind === 'focus') {
+          // Focus never changes the selection or the comparison; it only moves the camera.
+          const index = req.buildingIndex ?? (s.selection?.kind === 'building' ? s.selection.index : null);
+          const b = index !== null ? model.buildings[index] : undefined;
+          if (!b) return;
           const x = model.areaOffset[0] + b.centroid[0];
           const z = model.areaOffset[1] + b.centroid[1];
-          const r = Math.max(60, b.height * 1.6 + Math.sqrt(b.footprintArea) * 1.5);
+          // Buildings stand on the DEM: frame relative to the (possibly exaggerated) ground under them.
+          const ground = s.layers.terrain && model.terrain ? b.baseY * s.exaggeration : 0;
+          const r = Math.max(90, b.height * 1.6 + Math.sqrt(b.footprintArea) * 1.5);
           ref.current.getPosition(tmp.p);
           const dir = tmp.t.set(tmp.p.x - x, 0, tmp.p.z - z).normalize();
-          ref.current.setLookAt(x + dir.x * r * 0.8, b.height * 0.5 + r * 0.6, z + dir.z * r * 0.8, x, b.height * 0.45, z, true);
+          ref.current.setLookAt(x + dir.x * r * 0.8, ground + b.height * 0.5 + r * 0.6, z + dir.z * r * 0.8, x, ground + b.height * 0.45, z, true);
         }
       }),
     [model, views, tmp],

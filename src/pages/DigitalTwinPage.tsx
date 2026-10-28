@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Info, Layers3 } from 'lucide-react';
 import { Attribution, TwinHeader } from '../components/digital-twin/TwinHeader';
+import { ComparePanel } from '../components/digital-twin/ComparePanel';
 import { InspectorPanel } from '../components/digital-twin/InspectorPanel';
 import { LayerPanel } from '../components/digital-twin/LayerPanel';
 import { MapWidgets } from '../components/digital-twin/MapWidgets';
@@ -134,6 +135,7 @@ export default function DigitalTwinPage() {
                 </button>
               ))}
             </div>
+            <ComparePanel model={state.model} />
             <MeasureToolbar />
             <MapWidgets />
             <Attribution osmTimestamp={state.model.data.meta.osm_base_timestamp} hasDem={!!state.model.terrain} />

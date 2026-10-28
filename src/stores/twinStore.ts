@@ -22,7 +22,11 @@ export interface TwinFilters {
   sources: Record<HeightSource, boolean>;
 }
 
-export type TwinCameraRequest = { kind: 'reset' | 'top' | 'focus'; nonce: number };
+/** `focus` targets `buildingIndex` when given, otherwise the current single selection. */
+export type TwinCameraRequest = { kind: 'reset' | 'top' | 'focus'; nonce: number; buildingIndex?: number };
+
+/** Upper bound on compared buildings, so the table stays readable. */
+export const MAX_COMPARE = 8;
 
 /** A measured point: world (region) coordinates + ground-truth lon/lat. */
 export interface MeasurePoint {
@@ -48,6 +52,16 @@ interface TwinState {
   points: MeasurePoint[];
   closed: boolean;
   cameraRequest: TwinCameraRequest | null;
+  /**
+   * Buildings in the comparison, by stable OSM id (e.g. "way/472380415"), in
+   * the order they were added. Separate from the single `selection`.
+   */
+  compareIds: string[];
+  /** While on, clicking a building adds / removes it instead of inspecting it. */
+  compareMode: boolean;
+  compareOpen: boolean;
+  /** Building highlighted from the UI (e.g. hovering a comparison column), shown like a hover. */
+  located: number | null;
   toggleLayer: (k: keyof TwinLayers) => void;
   setColorBy: (c: ColorBy) => void;
   setSurface: (s: SurfaceOverlay) => void;
@@ -62,6 +76,14 @@ interface TwinState {
   closeShape: () => void;
   clearMeasure: () => void;
   requestCamera: (kind: TwinCameraRequest['kind']) => void;
+  focusBuilding: (index: number) => void;
+  /** Adds the id if absent, removes it if present. Returns false if the limit blocked an add. */
+  toggleCompare: (osmId: string) => boolean;
+  removeCompare: (osmId: string) => void;
+  clearCompare: () => void;
+  setCompareMode: (v: boolean) => void;
+  setCompareOpen: (v: boolean) => void;
+  setLocated: (index: number | null) => void;
   reset: () => void;
 }
 
@@ -80,9 +102,13 @@ const initial = () => ({
   points: [] as MeasurePoint[],
   closed: false,
   cameraRequest: null,
+  compareIds: [] as string[],
+  compareMode: false,
+  compareOpen: false,
+  located: null as number | null,
 });
 
-export const useTwinStore = create<TwinState>()((set) => ({
+export const useTwinStore = create<TwinState>()((set, get) => ({
   ...initial(),
   toggleLayer: (k) => set((s) => ({ layers: { ...s.layers, [k]: !s.layers[k] } })),
   setColorBy: (colorBy) => set({ colorBy }),
@@ -93,10 +119,29 @@ export const useTwinStore = create<TwinState>()((set) => ({
   resetFilters: (maxHeight) => set({ filters: { types: null, heightMin: 0, heightMax: Math.ceil(maxHeight), sources: { recorded: true, estimated_from_levels: true, estimated_default: true } } }),
   setHovered: (hovered) => set({ hovered }),
   select: (selection) => set({ selection }),
-  setTool: (tool) => set({ tool, points: [], closed: false, selection: null }),
+  // Measuring and compare-picking both use clicks, so choosing a measure tool leaves compare mode.
+  setTool: (tool) => set((s) => ({ tool, points: [], closed: false, selection: null, compareMode: tool === 'none' ? s.compareMode : false })),
   addPoint: (p) => set((s) => (s.closed ? { points: [p], closed: false } : { points: s.tool === 'probe' ? [p] : [...s.points, p] })),
   closeShape: () => set((s) => (s.points.length >= 3 ? { closed: true } : {})),
   clearMeasure: () => set({ points: [], closed: false }),
   requestCamera: (kind) => set({ cameraRequest: { kind, nonce: ++nonce } }),
+  focusBuilding: (buildingIndex) => set({ cameraRequest: { kind: 'focus', nonce: ++nonce, buildingIndex } }),
+  toggleCompare: (osmId) => {
+    if (!osmId) return false;
+    const ids = get().compareIds;
+    if (ids.includes(osmId)) {
+      set({ compareIds: ids.filter((id) => id !== osmId) });
+      return true;
+    }
+    if (ids.length >= MAX_COMPARE) return false;
+    set({ compareIds: [...ids, osmId] });
+    return true;
+  },
+  // Removing a column unmounts it before mouseleave fires, so clear the located highlight here.
+  removeCompare: (osmId) => set((s) => ({ compareIds: s.compareIds.filter((id) => id !== osmId), located: null })),
+  clearCompare: () => set({ compareIds: [], compareOpen: false, located: null }),
+  setCompareMode: (compareMode) => set((s) => (compareMode ? { compareMode, tool: 'none', points: [], closed: false } : { compareMode, tool: s.tool })),
+  setCompareOpen: (compareOpen) => set(compareOpen ? { compareOpen } : { compareOpen, located: null }),
+  setLocated: (located) => set({ located }),
   reset: () => set(initial()),
 }));

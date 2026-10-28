@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { LocateFixed, MousePointer2, Ruler, SquareDashed, Trash2 } from 'lucide-react';
+import { Columns3, LocateFixed, MousePointer2, Ruler, SquareDashed, Trash2 } from 'lucide-react';
 import { formatArea, formatLength, formatLonLat, measureArea, measureDistance } from '../../data/digital-twin/measure';
-import { useTwinStore, type MeasureTool } from '../../stores/twinStore';
+import { MAX_COMPARE, useTwinStore, type MeasureTool } from '../../stores/twinStore';
 import { isTypingTarget } from '../../utils/webgl';
 
 const TOOLS: { id: MeasureTool; label: string; icon: JSX.Element; hint: string }[] = [
@@ -56,6 +56,12 @@ export function MeasureToolbar() {
   const closed = useTwinStore((s) => s.closed);
   const clear = useTwinStore((s) => s.clearMeasure);
   const close = useTwinStore((s) => s.closeShape);
+  const compareMode = useTwinStore((s) => s.compareMode);
+  const setCompareMode = useTwinStore((s) => s.setCompareMode);
+  const compareCount = useTwinStore((s) => s.compareIds.length);
+  const compareOpen = useTwinStore((s) => s.compareOpen);
+  const setCompareOpen = useTwinStore((s) => s.setCompareOpen);
+  const clearCompare = useTwinStore((s) => s.clearCompare);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -64,7 +70,10 @@ export function MeasureToolbar() {
       if (e.key === 'Escape') {
         if (s.points.length) s.clearMeasure();
         else if (s.tool !== 'none') s.setTool('none');
-        else s.select(null);
+        else if (s.compareOpen) s.setCompareOpen(false);
+        else if (s.selection) s.select(null);
+        // Leaves compare mode but keeps the compared buildings.
+        else if (s.compareMode) s.setCompareMode(false);
       } else if (e.key === 'Enter' && s.tool === 'area') s.closeShape();
       else if (e.key === 'm' || e.key === 'M') s.setTool(s.tool === 'distance' ? 'none' : 'distance');
     };
@@ -77,13 +86,57 @@ export function MeasureToolbar() {
   return (
     <div className="tw-toolbar" role="toolbar" aria-label="Tools">
       <div className="tw-toolbar__tools">
-        {TOOLS.map((t) => (
-          <button key={t.id} type="button" className={tool === t.id ? 'is-active' : ''} aria-pressed={tool === t.id} onClick={() => setTool(t.id)} title={t.hint}>
-            {t.icon}
-            <span>{t.label}</span>
-          </button>
-        ))}
+        {TOOLS.map((t) => {
+          // Compare mode is a variant of Inspect: Inspect is not "active" while it is on.
+          const active = tool === t.id && !(t.id === 'none' && compareMode);
+          return (
+            <button key={t.id} type="button" className={active ? 'is-active' : ''} aria-pressed={active} onClick={() => (t.id === 'none' ? setCompareMode(false) : setTool(t.id))} title={t.hint}>
+              {t.icon}
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+        <span className="tw-toolbar__sep" aria-hidden="true" />
+        <button
+          type="button"
+          className={`tw-compare-btn${compareMode ? ' is-active is-compare' : ''}`}
+          aria-pressed={compareMode}
+          aria-label={`Compare mode${compareCount ? `, ${compareCount} selected` : ''}`}
+          onClick={() => setCompareMode(!compareMode)}
+          title="Compare mode: click buildings to add or remove them (Shift+click also works while inspecting)"
+        >
+          <Columns3 size={15} />
+          <span>Compare</span>
+          {compareCount > 0 && <b className="tw-toolbar__badge">{compareCount}</b>}
+        </button>
       </div>
+      {tool === 'none' && (compareMode || compareCount > 0) && (
+        <div className="tw-toolbar__result tw-toolbar__compare">
+          <span className={compareMode ? '' : 'tw-muted'}>
+            {compareMode ? (
+              <>
+                Click buildings to add or remove · <b>{compareCount}</b>/{MAX_COMPARE} selected
+              </>
+            ) : (
+              <>
+                <b>{compareCount}</b> building{compareCount === 1 ? '' : 's'} in comparison · Shift+click to add more
+              </>
+            )}
+          </span>
+          <div className="tw-toolbar__actions">
+            {compareCount > 0 && (
+              <button type="button" className="tw-btn tw-btn--small" onClick={() => setCompareOpen(!compareOpen)} aria-expanded={compareOpen}>
+                {compareOpen ? 'Hide table' : 'Open table'}
+              </button>
+            )}
+            {compareCount > 0 && (
+              <button type="button" className="tw-icon-btn" onClick={clearCompare} aria-label="Clear comparison" title="Clear comparison">
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {tool !== 'none' && (
         <div className="tw-toolbar__result">
           <Result />

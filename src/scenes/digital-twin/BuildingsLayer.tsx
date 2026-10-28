@@ -53,6 +53,8 @@ function createBuildingMaterial(opacity = 1) {
 
 const HOVER = new THREE.Color('#fef3c7');
 const SELECT = new THREE.Color('#2563eb');
+/** Buildings in the comparison set (kept distinct from the blue single selection). */
+const COMPARE = new THREE.Color('#7c3aed');
 
 function baseColor(b: TwinBuilding, colorBy: ColorBy, maxHeight: number, target: THREE.Color) {
   switch (colorBy) {
@@ -118,21 +120,36 @@ export function BuildingsLayer({ visibleSet }: { visibleSet: Set<number> }) {
     const colorAttr = geometry.attributes.color as THREE.BufferAttribute;
     const arr = colorAttr.array as Float32Array;
     const c = new THREE.Color();
-    const paint = (index: number, hovered: boolean, selected: boolean) => {
+    const s0 = useTwinStore.getState();
+    type S = typeof s0;
+    const sel = (s: S) => (s.selection?.kind === 'building' ? s.selection.index : null);
+    // Pointer hover in the scene, or a building located from the UI.
+    const lit = (s: S) => s.hovered ?? s.located;
+    // Compared buildings by index; ids not in this area (e.g. after an area switch) are skipped.
+    const comparedOf = (s: S) => new Set(s.compareIds.map((id) => model.buildingIndexById.get(id)).filter((i): i is number => i !== undefined));
+    let compared = comparedOf(s0);
+    const paint = (index: number, s: S) => {
       const range = ranges.get(index);
       if (!range) return;
       baseColor(model.buildings[index], colorBy, model.stats.maxHeight, c);
-      if (selected) c.lerp(SELECT, 0.55);
-      else if (hovered) c.lerp(HOVER, 0.6);
+      if (index === sel(s)) c.lerp(SELECT, 0.55);
+      else if (compared.has(index)) c.lerp(COMPARE, index === lit(s) ? 0.3 : 0.6);
+      else if (index === lit(s)) c.lerp(HOVER, 0.6);
       for (let v = range[0]; v < range[0] + range[1]; v++) arr.set([c.r, c.g, c.b], v * 3);
     };
-    const s0 = useTwinStore.getState();
-    const sel = (s: typeof s0) => (s.selection?.kind === 'building' ? s.selection.index : null);
-    for (const index of ranges.keys()) paint(index, index === s0.hovered, index === sel(s0));
+    for (const index of ranges.keys()) paint(index, s0);
     colorAttr.needsUpdate = true;
     return useTwinStore.subscribe((s, p) => {
-      if (s.hovered === p.hovered && sel(s) === sel(p)) return;
-      for (const i of new Set([p.hovered, s.hovered, sel(p), sel(s)])) if (i !== null) paint(i, i === s.hovered, i === sel(s));
+      const compareChanged = s.compareIds !== p.compareIds;
+      if (lit(s) === lit(p) && sel(s) === sel(p) && !compareChanged) return;
+      const dirty = new Set([lit(p), lit(s), sel(p), sel(s)]);
+      if (compareChanged) {
+        const next = comparedOf(s);
+        for (const i of compared) if (!next.has(i)) dirty.add(i);
+        for (const i of next) if (!compared.has(i)) dirty.add(i);
+        compared = next;
+      }
+      for (const i of dirty) if (i !== null) paint(i, s);
       colorAttr.needsUpdate = true;
     });
   }, [geometry, ranges, colorBy, model]);
@@ -167,7 +184,7 @@ export function BuildingsLayer({ visibleSet }: { visibleSet: Set<number> }) {
           if (e.delta > 5) return;
           e.stopPropagation();
           const id = idOf(e);
-          if (id !== null) handleSceneClick(model, e.point, id);
+          if (id !== null) handleSceneClick(model, e.point, id, e.nativeEvent.shiftKey);
         }}
       />
       <lineSegments geometry={edges} raycast={() => null}>

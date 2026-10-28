@@ -59,11 +59,21 @@ export function pickRoad(model: TwinModel, p: THREE.Vector3): number | null {
   return best;
 }
 
-/** Shared click routing for ground and buildings. */
-export function handleSceneClick(model: TwinModel, point: THREE.Vector3, buildingIndex: number | null) {
+/**
+ * Shared click routing for ground and buildings. With a measure tool active,
+ * clicks place points. In compare mode, or with Shift held, a building click
+ * adds it to / removes it from the comparison and leaves the single selection
+ * alone. Otherwise clicks inspect.
+ */
+export function handleSceneClick(model: TwinModel, point: THREE.Vector3, buildingIndex: number | null, shiftKey = false) {
   const s = useTwinStore.getState();
   if (s.tool !== 'none') {
     s.addPoint(toMeasurePoint(model, point, s.exaggeration, buildingIndex));
+    return;
+  }
+  if (s.compareMode || shiftKey) {
+    const b = buildingIndex !== null ? model.buildings[buildingIndex] : undefined;
+    if (b) s.toggleCompare(String(b.props.osm_id));
     return;
   }
   if (buildingIndex !== null) {
